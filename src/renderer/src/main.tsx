@@ -15,6 +15,7 @@ import { PlayersPage } from './pages/Players'
 import { SettingsPage } from './pages/Settings'
 import { MapsPage } from './pages/Maps'
 import { MePage } from './pages/Me'
+import { Overlay } from './Overlay'
 
 const PAGES = [
   { id: 'live', label: 'Live', icon: Icon.live },
@@ -84,4 +85,4 @@ function App() {
 function localStorageGet(k: string): string | null { try { return localStorage.getItem(k) } catch { return null } }
 function localStorageSet(k: string, v: string): void { try { localStorage.setItem(k, v) } catch { /* private mode */ } }
 
-createRoot(document.getElementById('root')!).render(<App />)
+createRoot(document.getElementById('root')!).render(location.hash === '#overlay' ? <Overlay /> : <App />)

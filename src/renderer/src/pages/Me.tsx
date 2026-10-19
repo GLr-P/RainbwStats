@@ -222,6 +222,7 @@ export function MePage() {
         <h2 style={{ margin: 0 }}>{p.me ? p.me.name : 'Me'}</h2>
         <span className="small muted">Your rank, sessions and games. Ranked games are picked up from your rank even without a replay.</span>
         <div className="spacer" />
+        <button className="btn" onClick={() => void rs().exportCsv()} disabled={!p.matches.length}>Export CSV</button>
         <button className="btn" onClick={reload}>Refresh</button>
       </div>
       <div className="grid-2">

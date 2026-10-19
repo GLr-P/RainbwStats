@@ -1,7 +1,7 @@
 // Opt-in round-1 detection: grabs the primary screen, OCRs it, and reports map/side/site.
 // Only runs while Siege is open and the engine still lacks round info (keeps CPU near zero otherwise).
 import { app, desktopCapturer, screen } from 'electron'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { OcrWorker } from './worker'
 import { detect, type Detection } from './matcher'
@@ -47,9 +47,12 @@ export class OcrDetector {
       if (!src || src.thumbnail.isEmpty()) { this.pending = null; return }
       const dir = this.debugDir ?? join(app.getPath('temp'), 'rainbwstats-ocr')
       mkdirSync(dir, { recursive: true })
-      const file = join(dir, this.debugDir ? `frame-${Date.now()}.png` : 'frame.png')
+      const stamp = Date.now()
+      const file = join(dir, this.debugDir ? `frame-${stamp}.png` : 'frame.png')
       writeFileSync(file, src.thumbnail.toPNG())
-      const found = detect(await this.worker.recognize(file), this.sitesByMap)
+      const lines = await this.worker.recognize(file)
+      const found = detect(lines, this.sitesByMap)
+      if (this.debugDir) this.keepDebug(dir, stamp, lines, found)
       // Require the same reading in two consecutive frames before acting on it.
       const sig = `${found.mapKey ?? ''}|${found.side ?? ''}|${found.site ?? ''}`
       const confirmed = sig !== '||' && sig === this.pending
@@ -62,6 +65,13 @@ export class OcrDetector {
     } catch { /* capture can fail (secure desktop, exclusive fullscreen): retry next tick */ } finally {
       this.busy = false
     }
+  }
+
+  /** Debug mode: next to each frame, what was read and detected; only the newest 40 frames are kept. */
+  private keepDebug(dir: string, stamp: number, lines: unknown, found: Detection): void {
+    writeFileSync(join(dir, `frame-${stamp}.txt`), `${JSON.stringify(found)}\n\n${JSON.stringify(lines, null, 1)}`)
+    const frames = readdirSync(dir).filter((f) => /^frame-\d+\.(png|txt)$/.test(f)).sort()
+    for (const f of frames.slice(0, Math.max(0, frames.length - 80))) rmSync(join(dir, f), { force: true })
   }
 
   /** Forget the last map so the next detection starts a new match. */

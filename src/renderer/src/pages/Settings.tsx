@@ -7,10 +7,37 @@ const DEFAULT_THEME: ThemeSettings = {
   fontScale: 1, density: 'comfortable', angled: true
 }
 
+/** Move your data between PCs (e.g. replays parsed on your main PC → laptop). */
+function DataPanel() {
+  const [msg, setMsg] = useState<string | null>(null)
+  const run = async (kind: 'export' | 'import') => {
+    setMsg(kind === 'export' ? 'Exporting…' : 'Importing…')
+    const r = kind === 'export' ? await rs().exportData() : await rs().importData()
+    if (!r.ok) return setMsg(r.error ? `Failed: ${r.error}` : null)
+    if (kind === 'export') return setMsg(`Saved to ${r.path}`)
+    const added = (r as { added?: Record<string, number> }).added ?? {}
+    setMsg(`Imported: ${added['rounds'] ?? 0} new rounds, ${added['rank_snapshots'] ?? 0} rank checks, ${added['api_op_fetch'] ?? 0} player stat updates`)
+  }
+  return (
+    <div className="panel">
+      <h2>Your data</h2>
+      <div className="row" style={{ gap: 8 }}>
+        <button className="btn" onClick={() => void run('export')}>Export to file</button>
+        <button className="btn" onClick={() => void run('import')}>Import from file</button>
+      </div>
+      <div className="small muted" style={{ marginTop: 8 }}>
+        Moves your parsed replays, rank history and operator stats to another PC. Importing only adds what's missing and never overwrites
+        newer data. Login, settings and sharing stay on each PC.
+      </div>
+      {msg && <div className="small" style={{ marginTop: 6 }}>{msg}</div>}
+    </div>
+  )
+}
+
 export function SettingsPage({ settings: s, update, status, refreshStatus }: { settings: Settings; update: (p: Partial<Settings>) => Promise<void>; status: AppStatus | undefined; refreshStatus: () => void }) {
   const theme = (p: Partial<ThemeSettings>) => update({ theme: { ...s.theme, ...p } })
   const weight = (k: keyof Weights, v: number) => update({ weights: { ...s.weights, [k]: v } })
-  const Toggle = ({ k, label }: { k: 'alwaysOnTop' | 'autoSwitchToLive' | 'launchAtLogin' | 'ocrEnabled' | 'shareCrowd'; label: string }) => (
+  const Toggle = ({ k, label }: { k: 'alwaysOnTop' | 'autoSwitchToLive' | 'launchAtLogin' | 'ocrEnabled' | 'ocrDebug' | 'shareCrowd' | 'overlay'; label: string }) => (
     <label className="toggle"><input type="checkbox" checked={s[k]} onChange={(e) => void update({ [k]: e.target.checked })} />{label}</label>
   )
   const Panel = ({ k, label }: { k: keyof Settings['panels']; label: string }) => (
@@ -37,10 +64,20 @@ export function SettingsPage({ settings: s, update, status, refreshStatus }: { s
         <h2>Behaviour</h2>
         <Toggle k="autoSwitchToLive" label="Jump to Live when a match is detected" />
         <Toggle k="alwaysOnTop" label="Keep window on top" />
+        <Toggle k="overlay" label="Overlay: small always-on-top window with picks, bans and the enemy team" />
+        <div className="small muted">Drag it anywhere, resize it, and use − / + for transparency. It shows over Siege in borderless or windowed mode (not exclusive fullscreen) and never touches the game. Also in the tray menu.</div>
         <Toggle k="launchAtLogin" label="Start with Windows" />
         <Toggle k="ocrEnabled" label="Read map and side from screen before round 1 (OCR, beta)" />
         <div className="small muted">OCR only looks at your screen while Siege runs and round 1 info is missing. Nothing leaves your PC.</div>
+        {s.ocrEnabled && (
+          <div className="row" style={{ gap: 8, marginTop: 6 }}>
+            <Toggle k="ocrDebug" label="Keep the last 40 OCR frames (to report misreads)" />
+            {s.ocrDebug && <button className="btn" onClick={() => void rs().openOcrDebug()}>Open folder</button>}
+          </div>
+        )}
       </div>
+
+      <DataPanel />
 
       <div className="panel">
         <h2>Global database</h2>

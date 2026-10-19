@@ -94,6 +94,12 @@ export interface Settings {
   autoSwitchToLive: boolean
   launchAtLogin: boolean
   ocrEnabled: boolean
+  /** Keep the last OCR frames + what was read (to report misreads). */
+  ocrDebug: boolean
+  /** Small always-on-top window with the live essentials. */
+  overlay: boolean
+  overlayOpacity: number
+  overlayBounds: { x: number; y: number; width: number; height: number } | null
   datasetUrl: string
   /** Opt-in: share pseudonymous operator stats with the global crowd database. */
   shareCrowd: boolean
@@ -216,6 +222,8 @@ export interface MapGuide {
   info: { version: string; patch: string; rankedScope: string; sources: { name: string; detail: string; url: string }[]; notes: string[] }
 }
 
+export interface FileResult { ok: boolean; path?: string; error?: string }
+
 export interface AuthResult { ok: boolean; twoFactor?: boolean; error?: string }
 
 export interface UpdateStatus {
@@ -245,6 +253,14 @@ export interface RsApi {
   lookupPlayer(name: string): Promise<PlayerLookup>
   rescan(): Promise<AppStatus>
   pickGameDir(): Promise<string | null>
+  /** Opens the folder with OCR debug frames. */
+  openOcrDebug(): Promise<void>
+  /** Saves replays, players, rank history and Ubisoft stats to a file (to move to another PC). */
+  exportData(): Promise<FileResult>
+  /** Merges an export into this PC's data (never overwrites newer data). */
+  importData(): Promise<FileResult & { added?: Record<string, number> }>
+  /** Saves your match history as CSV. */
+  exportCsv(): Promise<FileResult>
   /** Replays the last recorded match into the Live page round by round (testing without playing). */
   simulate(): Promise<boolean>
   /** Dataset + learned operators, so the renderer catalog matches main. */
@@ -272,9 +288,11 @@ export interface RsApi {
   installUpdate(): Promise<void>
   onUpdate(cb: (s: UpdateStatus) => void): () => void
   onLive(cb: (s: LiveState) => void): () => void
+  /** Settings changed (in any window). */
+  onSettings(cb: (s: Settings) => void): () => void
 }
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'performance', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
-] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate'>[]
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'openOcrDebug', 'exportData', 'importData', 'exportCsv', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'performance', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
+] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate' | 'onSettings'>[]

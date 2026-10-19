@@ -62,3 +62,30 @@ describe('performance / match history', () => {
     expect(p.session?.active).toBe(true)
   })
 })
+
+describe('export / import between PCs', () => {
+  it('round-trips data and never overwrites newer Ubisoft stats', () => {
+    const a = openDb(':memory:')
+    for (const r of rounds) a.saveRound(r)
+    a.saveRank(snap('2026-10-20T14:00:00Z', 10, 8, 3000))
+    a.saveApiOpStats('p1', ['Y11S3'], [{ season: 'Y11S3', playlist: 'ranked', opKey: 'ash', rounds: 10, wins: 5 }], '2026-10-20T10:00:00Z')
+    a.saveApiOpStats('p2', ['Y11S3'], [{ season: 'Y11S3', playlist: 'ranked', opKey: 'ash', rounds: 99, wins: 50 }], '2026-10-20T10:00:00Z')
+    const dump = JSON.parse(JSON.stringify(a.exportData()))
+    const b = openDb(':memory:')
+    b.saveApiOpStats('p1', ['Y11S3'], [{ season: 'Y11S3', playlist: 'ranked', opKey: 'rook', rounds: 20, wins: 9 }], '2026-10-20T12:00:00Z') // newer locally
+    b.saveApiOpStats('p2', ['Y11S3'], [{ season: 'Y11S3', playlist: 'ranked', opKey: 'ash', rounds: 50, wins: 20 }], '2026-10-19T10:00:00Z') // older locally
+    const added = b.importData(dump)
+    expect(added['rounds']).toBe(rounds.length)
+    expect(added['rank_snapshots']).toBe(1)
+    expect([...b.apiOpAggs({ profileId: 'p1', season: 'Y11S3' }).keys()]).toEqual(['rook'])
+    expect(b.apiOpAggs({ profileId: 'p2', season: 'Y11S3' }).get('ash')?.rounds).toBe(99)
+    expect(b.importData(dump)['rounds']).toBe(0) // idempotent
+    expect(() => b.importData({ hello: 1 })).toThrow(/Not a RainbwStats export/)
+  })
+  it('exports match history as CSV', async () => {
+    const { historyCsv } = await import('../src/main/performance')
+    const csv = historyCsv([replayMatch(rounds, me)!])
+    expect(csv.split('\r\n')[0]).toMatch(/^date,mode,map,result/)
+    expect(csv).toMatch(/plane,loss,2,4/)
+  })
+})

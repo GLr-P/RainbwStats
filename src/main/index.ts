@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, Tray } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen, session, shell, Tray } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import type { RoundRecord } from '../shared/types'
 import { demoLobby, seedDemoHistory } from './demo'
@@ -17,7 +17,7 @@ import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
 import { apiOps, currentSeason, globalMeta, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
 import { CrowdSync } from './crowd'
-import { performance } from './performance'
+import { historyCsv, performance } from './performance'
 import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
 import { SEED_SITES } from '../shared/data/maps'
 import { rankedPool } from '../shared/data/sitePicks'
@@ -38,6 +38,34 @@ else if (!app.requestSingleInstanceLock()) app.quit()
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
+let overlay: BrowserWindow | null = null
+
+/** Opens/closes the compact always-on-top window (a normal desktop window; it never touches the game). */
+function syncOverlay(s: Settings, saveBounds: (b: NonNullable<Settings['overlayBounds']>) => void): void {
+  if (s.overlay && !overlay && (!isSmoke || process.argv.some((a) => a.startsWith('--shots=')))) {
+    const b = s.overlayBounds
+    const onScreen = b && screen.getAllDisplays().some((d) => b.x < d.workArea.x + d.workArea.width - 40 && b.x + b.width > d.workArea.x + 40 && b.y >= d.workArea.y - 10 && b.y < d.workArea.y + d.workArea.height - 40)
+    const o = new BrowserWindow({
+      width: b?.width ?? 380, height: b?.height ?? 480, ...(onScreen ? { x: b!.x, y: b!.y } : {}), minWidth: 260, minHeight: 160,
+      frame: false, resizable: true, skipTaskbar: true, alwaysOnTop: true, backgroundColor: s.theme.bg, title: 'RainbwStats overlay', show: false,
+      webPreferences: { preload: join(import.meta.dirname, '../preload/index.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    })
+    o.setAlwaysOnTop(true, 'screen-saver') // stays above borderless-windowed games
+    o.once('ready-to-show', () => o.showInactive())
+    let t: NodeJS.Timeout | undefined
+    const save = () => { clearTimeout(t); t = setTimeout(() => { if (!o.isDestroyed()) saveBounds(o.getBounds()) }, 500) }
+    o.on('moved', save)
+    o.on('resized', save)
+    o.on('closed', () => { if (overlay === o) overlay = null })
+    if (process.env['ELECTRON_RENDERER_URL']) void o.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#overlay`)
+    else void o.loadFile(join(import.meta.dirname, '../renderer/index.html'), { hash: 'overlay' })
+    overlay = o
+  } else if (!s.overlay && overlay) {
+    overlay.close()
+    overlay = null
+  }
+  overlay?.setOpacity(Math.min(1, Math.max(0.3, s.overlayOpacity)))
+}
 
 function createWindow(s: Settings): BrowserWindow {
   const w = new BrowserWindow({
@@ -91,9 +119,13 @@ app.whenReady().then(async () => {
   const ocr = new OcrDetector((d, fresh) => engine.setDetected(d, fresh))
   ocr.shouldRun = () => engine.needsRoundInfo
   ocr.sitesByMap = (k) => db.sites(k).map((s) => s.site)
+  const ocrDebugDir = join(dataDir, 'ocr-debug')
+  ocr.debugDir = settings.get().ocrDebug ? ocrDebugDir : null
 
   win = createWindow(settings.get())
-  engine.on('state', (s) => win?.webContents.send('rs:live', s))
+  engine.on('state', (s) => { win?.webContents.send('rs:live', s); overlay?.webContents.send('rs:live', s) })
+  const saveOverlayBounds = (b: NonNullable<Settings['overlayBounds']>) => settings.set({ overlayBounds: b })
+  syncOverlay(settings.get(), saveOverlayBounds)
   engine.start()
   if (settings.get().ocrEnabled) ocr.start()
   if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
@@ -118,17 +150,20 @@ app.whenReady().then(async () => {
   }
   const authErr = (e: unknown): AuthResult => ({ ok: false, error: e instanceof Error ? e.message : String(e) })
 
-  const api: Omit<RsApi, 'onLive' | 'onUpdate'> = {
+  const api: Omit<RsApi, 'onLive' | 'onUpdate' | 'onSettings'> = {
     status: async () => status(),
     getSettings: async () => settings.get(),
     setSettings: async (patch) => {
       const prev = settings.get()
       const next = settings.set(patch)
+      syncOverlay(next, saveOverlayBounds)
+      for (const w of BrowserWindow.getAllWindows()) w.webContents.send('rs:settings', next)
       if (next.gameDir !== prev.gameDir) { engine.restartWatcher(); void engine.rescan() }
       if (next.alwaysOnTop !== prev.alwaysOnTop) win?.setAlwaysOnTop(next.alwaysOnTop)
       if (next.launchAtLogin !== prev.launchAtLogin) app.setLoginItemSettings({ openAtLogin: next.launchAtLogin })
       if (next.ocrEnabled !== prev.ocrEnabled) next.ocrEnabled ? ocr.start() : ocr.stop()
       if (next.shareCrowd && !prev.shareCrowd) void crowdTick()
+      ocr.debugDir = next.ocrDebug ? ocrDebugDir : null
       engine.refresh()
       return next
     },
@@ -256,13 +291,34 @@ app.whenReady().then(async () => {
       const dir = r.canceled ? null : r.filePaths[0] ?? null
       if (dir) await api.setSettings({ gameDir: dir })
       return dir
+    },
+    openOcrDebug: async () => { mkdirSync(ocrDebugDir, { recursive: true }); await shell.openPath(ocrDebugDir) },
+    exportData: async () => {
+      const r = await dialog.showSaveDialog(win!, { title: 'Export RainbwStats data', defaultPath: `rainbwstats-${new Date().toISOString().slice(0, 10)}.json`, filters: [{ name: 'RainbwStats export', extensions: ['json'] }] })
+      if (r.canceled || !r.filePath) return { ok: false }
+      try { writeFileSync(r.filePath, JSON.stringify(db.exportData())); return { ok: true, path: r.filePath } } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) } }
+    },
+    importData: async () => {
+      const r = await dialog.showOpenDialog(win!, { title: 'Import RainbwStats data', properties: ['openFile'], filters: [{ name: 'RainbwStats export', extensions: ['json'] }] })
+      const file = r.canceled ? null : r.filePaths[0]
+      if (!file) return { ok: false }
+      try {
+        const added = db.importData(JSON.parse(readFileSync(file, 'utf8')))
+        void engine.refresh()
+        return { ok: true, path: file, added }
+      } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) } }
+    },
+    exportCsv: async () => {
+      const r = await dialog.showSaveDialog(win!, { title: 'Export match history', defaultPath: `rainbwstats-games-${new Date().toISOString().slice(0, 10)}.csv`, filters: [{ name: 'CSV', extensions: ['csv'] }] })
+      if (r.canceled || !r.filePath) return { ok: false }
+      try { writeFileSync(r.filePath, historyCsv(performance(ctx, ubi.canAuth).matches)); return { ok: true, path: r.filePath } } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) } }
     }
   }
   for (const m of API_METHODS) ipcMain.handle(`rs:${m}`, (_e, ...args: unknown[]) => (api[m] as (...a: unknown[]) => unknown)(...args))
 
   tray = new Tray(nativeImage.createFromPath(join(app.getAppPath(), 'resources', 'tray.png')))
   tray.setToolTip('RainbwStats')
-  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Show', click: () => win?.show() }, { label: 'Quit', click: () => app.quit() }]))
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Show', click: () => win?.show() }, { label: 'Overlay on/off', click: () => void api.setSettings({ overlay: !settings.get().overlay }) }, { label: 'Quit', click: () => app.quit() }]))
   tray.on('click', () => win?.show())
 
   if (isSmoke) {
@@ -292,6 +348,10 @@ app.whenReady().then(async () => {
         writeFileSync(join(shots, '0-round1.png'), (await win!.webContents.capturePage()).toPNG())
         await new Promise((r) => setTimeout(r, 10_000))
         writeFileSync(join(shots, '0-simulation.png'), (await win!.webContents.capturePage()).toPNG())
+        await api.setSettings({ overlay: true })
+        await new Promise((r) => setTimeout(r, 2500))
+        if (overlay) writeFileSync(join(shots, '9-overlay.png'), (await overlay.webContents.capturePage()).toPNG())
+        await api.setSettings({ overlay: false })
         const lobbyPlayers = [...engine.state.myTeam, ...engine.state.enemyTeam]
         console.log('SIMSTATE', engine.state.source, engine.state.phase, engine.state.rounds.length, engine.state.mapKey,
           `players=${lobbyPlayers.length} ranked=${lobbyPlayers.filter((x) => x.card?.ranked).length} withMains=${lobbyPlayers.filter((x) => x.mains.length).length}`,

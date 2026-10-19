@@ -132,3 +132,12 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
     session: sessionOf(matches, now), matches, sides, ops, maps: [...maps.values()], loggedIn
   }
 }
+
+/** Match history as CSV (spreadsheet-friendly). */
+export function historyCsv(rows: MatchRow[]): string {
+  const q = (v: unknown) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  const head = ['date', 'mode', 'map', 'result', 'rounds_won', 'rounds_lost', 'rp_change', 'rank_after', 'kills', 'deaths', 'headshots', 'operators', 'source']
+  const lines = rows.map((m) => [m.at, m.kind, m.mapKey ?? '', m.games ? `${m.games.wins}W-${m.games.losses + m.games.abandons}L` : m.result, m.score?.[0] ?? '', m.score?.[1] ?? '',
+    m.rpDelta ?? '', m.rankAfter ?? '', m.rounds.length ? m.kills : '', m.rounds.length ? m.deaths : '', m.rounds.length ? m.headshots : '', m.ops.join(' / '), m.source].map(q).join(','))
+  return [head.join(','), ...lines].join('\r\n') + '\r\n'
+}

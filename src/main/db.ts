@@ -59,6 +59,9 @@ export interface RankSnapshot {
 
 export type Db = ReturnType<typeof openDb>
 
+/** Tables that move between PCs (settings, credentials, caches and sharing state stay local). */
+const PORTABLE = ['rounds', 'round_players', 'players', 'rank_snapshots', 'api_op_stats', 'api_op_fetch'] as const
+
 export function openDb(path: string) {
   const db = new DatabaseSync(path)
   db.exec(SCHEMA)
@@ -268,6 +271,47 @@ export function openDb(path: string) {
         const m = db.prepare(`INSERT OR IGNORE INTO crowd_sent_matches VALUES (?)`)
         for (const id of matches) m.run(id)
       })
+    },
+
+    /** All portable data (replays, players, rank history, Ubisoft operator stats) for moving between PCs. */
+    exportData(): { app: 'RainbwStats'; format: 1; exportedAt: string; tables: Record<string, Record<string, unknown>[]> } {
+      const tables = Object.fromEntries(PORTABLE.map((t) => [t, db.prepare(`SELECT * FROM ${t}`).all() as Record<string, unknown>[]]))
+      return { app: 'RainbwStats', format: 1, exportedAt: new Date().toISOString(), tables }
+    },
+    /** Merges an export: never overwrites newer local data. Returns rows added per table. */
+    importData(data: unknown): Record<string, number> {
+      const d = data as { app?: unknown; format?: unknown; tables?: Record<string, unknown> }
+      if (d?.app !== 'RainbwStats' || d.format !== 1 || typeof d.tables !== 'object' || d.tables === null) throw new Error('Not a RainbwStats export')
+      const added: Record<string, number> = {}
+      tx(() => {
+        for (const t of PORTABLE) {
+          const rows = d.tables![t]
+          if (!Array.isArray(rows) || t === 'api_op_stats' || t === 'api_op_fetch') continue // merged below (newest fetch wins)
+          const cols = (db.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name)
+          const ins = db.prepare(`INSERT OR IGNORE INTO ${t} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`)
+          let n = 0
+          for (const r of rows) {
+            if (typeof r !== 'object' || r === null) continue
+            const vals = cols.map((c) => (r as Record<string, unknown>)[c] ?? null) as (string | number | null)[]
+            n += Number(ins.run(...vals).changes)
+          }
+          added[t] = n
+        }
+        // A newer Ubisoft fetch in the import replaces the older local one for that player/season.
+        const fetches = Array.isArray(d.tables!['api_op_fetch']) ? d.tables!['api_op_fetch'] as { profile_id: string; season: string; fetched_at: string }[] : []
+        const stats = Array.isArray(d.tables!['api_op_stats']) ? d.tables!['api_op_stats'] as { profile_id: string; season: string; playlist: string; op_key: string; rounds: number; wins: number }[] : []
+        added['api_op_fetch'] = 0
+        for (const f of fetches) {
+          const local = (db.prepare(`SELECT fetched_at f FROM api_op_fetch WHERE profile_id = ? AND season = ?`).get(f.profile_id, f.season) as { f: string } | undefined)?.f
+          if (local && local >= f.fetched_at) continue
+          added['api_op_fetch']++
+          db.prepare(`DELETE FROM api_op_stats WHERE profile_id = ? AND season = ?`).run(f.profile_id, f.season)
+          const ins = db.prepare(`INSERT OR REPLACE INTO api_op_stats VALUES (?,?,?,?,?,?)`)
+          for (const s of stats) if (s.profile_id === f.profile_id && s.season === f.season) ins.run(s.profile_id, s.season, s.playlist, s.op_key, s.rounds, s.wins)
+          db.prepare(`INSERT OR REPLACE INTO api_op_fetch VALUES (?, ?, ?)`).run(f.profile_id, f.season, f.fetched_at)
+        }
+      })
+      return added
     },
 
     getJson<T>(key: string): T | undefined {

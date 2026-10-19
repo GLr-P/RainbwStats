@@ -149,3 +149,9 @@ input[type='range'] { accent-color: var(--accent); width: 100%; }
 .warn { color: var(--accent); }
 
 @media (max-width: 1180px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* Overlay window */
+.overlay { height: 100vh; overflow-y: auto; background: var(--bg); border: 1px solid var(--line); }
+.overlay .ov-h { font-family: var(--head); font-weight: 700; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.ov-btn { background: none; border: 1px solid var(--line); color: var(--muted); width: 22px; height: 22px; padding: 0; cursor: pointer; font-weight: 700; line-height: 1; }
+.ov-btn:hover { color: var(--text); border-color: var(--muted); }

@@ -105,7 +105,7 @@ export function Seg<T extends string>({ value, options, onChange }: { value: T; 
 
 export function useSettings(): [Settings | undefined, (p: Partial<Settings>) => Promise<void>] {
   const [s, set] = useState<Settings>()
-  useEffect(() => { void rs().getSettings().then(set) }, [])
+  useEffect(() => { void rs().getSettings().then(set); return rs().onSettings((n) => { set(n); applyTheme(n.theme) }) }, [])
   const update = useCallback(async (p: Partial<Settings>) => {
     const next = await rs().setSettings(p)
     set(next)
