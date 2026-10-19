@@ -1,0 +1,25 @@
+import { describe, expect, it } from 'vitest'
+import { detect, similarity } from '../src/main/ocr/matcher'
+
+describe('ocr matcher', () => {
+  it('finds map and side in noisy OCR output', () => {
+    expect(detect(['ROUND 1', 'CLUBH0USE', 'DEFENSE', 'SELECT YOUR OPERATOR'])).toMatchObject({ mapKey: 'clubhouse', side: 'defense' })
+    expect(detect(['THEME PARK', 'ATTACK'])).toMatchObject({ mapKey: 'themepark', side: 'attack' })
+    expect(detect(['NIGHTHAVEN LABS'])).toMatchObject({ mapKey: 'nighthaven' })
+    expect(detect(['KAFE DOSTOYEVSKY'])).toMatchObject({ mapKey: 'kafe' })
+  })
+  it('does not hallucinate from unrelated text', () => {
+    expect(detect(['PLAY', 'SETTINGS', 'BATTLE PASS', 'SHOP'])).toEqual({})
+    expect(detect(['The attack on the bank was great today and long'])).not.toHaveProperty('side')
+  })
+  it('matches a site half to the full replay site name', () => {
+    const sites = () => ['2F Gym, 2F Bedroom', '1F Bar, 1F Stock Room']
+    expect(detect(['BANK', 'nope', '1F Stock Roon'], () => [])).toMatchObject({ mapKey: 'bank' })
+    expect(detect(['CLUBHOUSE', '1F Stock Roon'], sites).site).toBe('1F Bar, 1F Stock Room')
+  })
+  it('similarity basics', () => {
+    expect(similarity('ABC', 'ABC')).toBe(1)
+    expect(similarity('', 'A')).toBe(0)
+    expect(similarity('CLUBHOUSE', 'CLUBH0USE')).toBeGreaterThan(0.85)
+  })
+})

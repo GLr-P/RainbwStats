@@ -152,6 +152,30 @@ export function openDb(path: string) {
         FROM rank_snapshots WHERE profile_id = ? GROUP BY board, season_id ORDER BY season_id DESC`).all(profileId) as never
     },
 
+    /** (operator, played_at) rows for recency-weighted comfort. */
+    recentOps(profileId: string, side: Side): { op: string; at: string }[] {
+      return db.prepare(`SELECT rp.operator_id op, r.played_at at FROM round_players rp JOIN rounds r USING (match_id, round)
+        WHERE rp.profile_id = ? AND rp.side = ? ORDER BY r.played_at DESC LIMIT 2000`).all(profileId, side) as never
+    },
+    /** The profile that records most replays on this PC: the user. */
+    mostCommonRecorder(): string | null {
+      const row = db.prepare(`SELECT recording_profile_id p FROM rounds WHERE recording_profile_id != '' GROUP BY p ORDER BY count(*) DESC LIMIT 1`).get() as { p: string } | undefined
+      return row?.p ?? null
+    },
+    playerName(profileId: string): string | null {
+      return (db.prepare(`SELECT username FROM players WHERE profile_id = ?`).get(profileId) as { username: string } | undefined)?.username ?? null
+    },
+    encounters(profileId: string, me: string): number {
+      return (db.prepare(`SELECT count(DISTINCT a.match_id) n FROM round_players a JOIN round_players b USING (match_id, round)
+        WHERE a.profile_id = ? AND b.profile_id = ?`).get(profileId, me) as { n: number }).n
+    },
+    findPlayerByName(name: string): string | null {
+      return (db.prepare(`SELECT profile_id FROM players WHERE lower(username) = lower(?) ORDER BY last_seen DESC LIMIT 1`).get(name) as { profile_id: string } | undefined)?.profile_id ?? null
+    },
+    latestMatch(): { matchId: string; lastAt: string } | null {
+      return (db.prepare(`SELECT match_id matchId, max(played_at) lastAt FROM rounds GROUP BY match_id ORDER BY lastAt DESC LIMIT 1`).get() as never) ?? null
+    },
+
     getJson<T>(key: string): T | undefined {
       const row = getKv.get(key) as { value: string } | undefined
       return row ? (JSON.parse(row.value) as T) : undefined

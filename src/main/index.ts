@@ -1,46 +1,145 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { openDb } from './db'
+import { SettingsStore } from './settings'
+import { SecureStore } from './secure'
+import { DatasetStore } from './dataset'
+import { UbiClient, UbiError } from './ubi/client'
+import { LobbyService } from './ubi/lobby'
+import { LiveEngine } from './live/engine'
+import { buildLive } from './live/state'
+import { metaRows, opStats, type Ctx } from './services'
+import { applyLearned } from './replay/ingest'
+import { findGameDirs, replayRootOf } from './replay/locate'
+import { OcrDetector } from './ocr/detector'
+import { API_METHODS, type AppStatus, type AuthResult, type RsApi, type Settings } from '../shared/ipc'
 
 const isSmoke = process.argv.includes('--smoke')
+if (!app.requestSingleInstanceLock()) app.quit()
 
-function createWindow(): BrowserWindow {
-  const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 960,
-    minHeight: 600,
-    backgroundColor: '#0b0e13',
-    show: false,
-    autoHideMenuBar: true,
-    title: 'RainbwStats',
-    webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+let win: BrowserWindow | null = null
+let tray: Tray | null = null
+
+function createWindow(s: Settings): BrowserWindow {
+  const w = new BrowserWindow({
+    width: 1440, height: 900, minWidth: 960, minHeight: 600, backgroundColor: s.theme.bg, show: false,
+    autoHideMenuBar: true, title: 'RainbwStats', alwaysOnTop: s.alwaysOnTop,
+    webPreferences: { preload: join(import.meta.dirname, '../preload/index.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
-  win.once('ready-to-show', () => !isSmoke && win.show())
-  // Open external links in the browser, never inside the app.
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  w.once('ready-to-show', () => !isSmoke && w.show())
+  w.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
   })
-  if (process.env['ELECTRON_RENDERER_URL']) void win.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  else void win.loadFile(join(import.meta.dirname, '../renderer/index.html'))
-  return win
+  if (process.env['ELECTRON_RENDERER_URL']) void w.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  else void w.loadFile(join(import.meta.dirname, '../renderer/index.html'))
+  return w
 }
 
-if (!app.requestSingleInstanceLock()) app.quit()
+app.on('second-instance', () => { win?.show(); win?.focus() })
 
-app.whenReady().then(() => {
-  const win = createWindow()
+app.whenReady().then(async () => {
+  const dataDir = isSmoke ? join(app.getPath('temp'), 'rainbwstats-smoke') : app.getPath('userData')
+  mkdirSync(dataDir, { recursive: true })
+  const db = openDb(join(dataDir, 'rainbwstats.db'))
+  applyLearned(db)
+  const settings = new SettingsStore(db)
+  if (!settings.get().gameDir) settings.set({ gameDir: findGameDirs()[0] ?? null })
+  const secure = new SecureStore(dataDir)
+  const dataset = new DatasetStore(dataDir)
+  const ubi = new UbiClient({ fetch, now: Date.now, loadCredentials: secure.loadCredentials, loadAuth: secure.loadAuth, saveAuth: secure.saveAuth })
+  const ctx: Ctx = { db, settings: () => settings.get(), dataset: () => dataset.get(), me: () => ubi.profileId ?? db.mostCommonRecorder() }
+  const lobby = new LobbyService(ubi, db)
+  const replayRoot = () => (settings.get().gameDir ? replayRootOf(settings.get().gameDir!) : null)
+  const engine = new LiveEngine(ctx, lobby, replayRoot)
+  const ocr = new OcrDetector((d, fresh) => engine.setDetected(d, fresh))
+  ocr.shouldRun = () => engine.needsRoundOneInfo
+  ocr.sitesByMap = (k) => db.sites(k).map((s) => s.site)
+
+  win = createWindow(settings.get())
+  engine.on('state', (s) => win?.webContents.send('rs:live', s))
+  engine.start()
+  if (settings.get().ocrEnabled) ocr.start()
+  if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
+  void dataset.refresh(settings.get().datasetUrl).then((changed) => changed && engine.refresh())
+
+  const status = (): AppStatus => {
+    const root = replayRoot()
+    const me = ctx.me()
+    return {
+      replayRoot: root, replayRootExists: !!root && existsSync(root), watching: engine.watching, ...db.counts(),
+      lastIngest: engine.lastIngest, loggedIn: ubi.loggedIn, myProfileId: me, myName: me ? db.playerName(me) : null,
+      datasetVersion: dataset.get().version, version: app.getVersion()
+    }
+  }
+  const authErr = (e: unknown): AuthResult => ({ ok: false, error: e instanceof Error ? e.message : String(e) })
+
+  const api: Omit<RsApi, 'onLive'> = {
+    status: async () => status(),
+    getSettings: async () => settings.get(),
+    setSettings: async (patch) => {
+      const prev = settings.get()
+      const next = settings.set(patch)
+      if (next.gameDir !== prev.gameDir) { engine.restartWatcher(); engine.rescan() }
+      if (next.alwaysOnTop !== prev.alwaysOnTop) win?.setAlwaysOnTop(next.alwaysOnTop)
+      if (next.launchAtLogin !== prev.launchAtLogin) app.setLoginItemSettings({ openAtLogin: next.launchAtLogin })
+      if (next.ocrEnabled !== prev.ocrEnabled) next.ocrEnabled ? ocr.start() : ocr.stop()
+      engine.refresh()
+      return next
+    },
+    getLive: async () => engine.state,
+    preview: async (mapKey, side, site) =>
+      buildLive(ctx, [], { gameRunning: false, roundsPerMatch: 6, overtimeRounds: 3, phase: 'idle', override: { mapKey, side, site } }),
+    login: async (email, password) => {
+      try {
+        const r = await ubi.login({ email, password })
+        secure.saveCredentials({ email, password })
+        if (r === 'twoFactor') return { ok: false, twoFactor: true }
+        void ubi.warm().catch(() => undefined)
+        return { ok: true }
+      } catch (e) { return authErr(e) }
+    },
+    submitTwoFactor: async (code) => {
+      try { await ubi.submitTwoFactor(code); void ubi.warm().catch(() => undefined); return { ok: true } } catch (e) { return authErr(e) }
+    },
+    logout: async () => { ubi.logout(); secure.clear() },
+    opStats: async (f) => opStats(ctx, f),
+    meta: async (f) => metaRows(ctx, f),
+    sites: async (mapKey) => db.sites(mapKey),
+    seasons: async () => db.seasons(),
+    lookupPlayer: async (name) => {
+      let id = db.findPlayerByName(name)
+      let error: string | undefined
+      if (!id && ubi.canAuth) {
+        try { id = (await ubi.profileByName(name))?.profileId ?? null } catch (e) { error = e instanceof UbiError ? e.message : String(e) }
+      }
+      if (!id) return { card: null, history: [], encounters: 0, error: error ?? 'Player not found' }
+      const { cards, error: e2 } = await lobby.cards([id], { [id]: db.playerName(id) ?? name })
+      const me = ctx.me()
+      return { card: cards[0] ?? null, history: db.rankHistory(id), encounters: me && me !== id ? db.encounters(id, me) : 0, error: e2 }
+    },
+    rescan: async () => { engine.rescan(); return status() },
+    pickGameDir: async () => {
+      const r = await dialog.showOpenDialog(win!, { title: 'Select your Rainbow Six Siege folder', properties: ['openDirectory'] })
+      const dir = r.canceled ? null : r.filePaths[0] ?? null
+      if (dir) await api.setSettings({ gameDir: dir })
+      return dir
+    }
+  }
+  for (const m of API_METHODS) ipcMain.handle(`rs:${m}`, (_e, ...args: unknown[]) => (api[m] as (...a: unknown[]) => unknown)(...args))
+
+  tray = new Tray(nativeImage.createEmpty())
+  tray.setToolTip('RainbwStats')
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Show', click: () => win?.show() }, { label: 'Quit', click: () => app.quit() }]))
+  tray.on('click', () => win?.show())
+
   if (isSmoke) {
     const fail = setTimeout(() => { console.error('SMOKE FAIL: timeout'); app.exit(1) }, 20000)
     win.webContents.once('did-finish-load', async () => {
-      const ok = await win.webContents.executeJavaScript('new Promise(r => setTimeout(() => r(!!document.querySelector("[data-app-ready]")), 1500))')
+      const ok = await win!.webContents.executeJavaScript('new Promise(r => setTimeout(() => r(!!document.querySelector("[data-app-ready]")), 2500))')
       clearTimeout(fail)
-      console.log(ok ? 'SMOKE OK' : 'SMOKE FAIL: app root missing')
+      console.log(ok ? `SMOKE OK rounds=${db.counts().rounds}` : 'SMOKE FAIL: app root missing')
       app.exit(ok ? 0 : 1)
     })
   }
