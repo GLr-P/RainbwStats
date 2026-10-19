@@ -95,9 +95,13 @@ function Teams({ s }: { s: LiveState }) {
   return (
     <div className="panel">
       <h2>Lobby {s.lobbyError && <span className="sub warn">{s.lobbyError}</span>}</h2>
+      {!s.myTeam.length && !s.enemyTeam.length ? (
+        <div className="empty">Players, ranks and operators appear when round 1 ends.<br /><span className="small">Siege only writes the lobby to its replay file at the end of each round.</span></div>
+      ) : <>
       <TeamTable title="Your team" players={s.myTeam} />
       <div style={{ height: 10 }} />
       <TeamTable title="Enemy team" players={s.enemyTeam} />
+      </>}
     </div>
   )
 }
@@ -162,6 +166,12 @@ function Waiting({ live, status }: { live: LiveState; status: AppStatus | undefi
           <Item ok={st.loggedIn}>{st.loggedIn ? 'Ubisoft account connected (lobby ranks)' : 'Log in to Ubisoft in Settings for lobby ranks (optional)'}</Item>
           <Item ok={live.gameRunning}>{live.gameRunning ? 'Game detected' : 'Game not running'}</Item>
         </ul>
+      )}
+      {!!st?.matches && (
+        <div className="row" style={{ marginTop: 14 }}>
+          <button className="btn primary" onClick={() => void rs().simulate()}>Simulate last match</button>
+          <span className="small muted">Replays your most recent recorded match here, round by round. Log in first to see real lobby ranks.</span>
+        </div>
       )}
     </div>
   )

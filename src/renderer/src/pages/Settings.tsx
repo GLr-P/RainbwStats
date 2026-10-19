@@ -26,6 +26,7 @@ export function SettingsPage({ settings: s, update, status, refreshStatus }: { s
         <div className="row">
           <button className="btn" onClick={() => void rs().pickGameDir().then(refreshStatus)}>Change…</button>
           <button className="btn" onClick={() => void rs().rescan().then(refreshStatus)}>Rescan replays</button>
+          <button className="btn" onClick={() => void rs().simulate()} title="Replays your last match into the Live page">Simulate last match</button>
         </div>
         {status && <div className="small muted">{status.rounds} rounds · {status.matches} matches · {status.players} players · dataset {status.datasetVersion}</div>}
         <div className="small muted">In Siege, turn on <b>Options → General → Match Replay</b> so every match is recorded.</div>

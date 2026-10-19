@@ -141,7 +141,7 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     // MatchReplay may only appear after the user enables replays in game: start watching then.
     if (!this.watcher) { const root = this.root(); if (root && existsSync(root)) { this.restartWatcher(); void this.rescan() } }
     const running = await isGameRunning()
-    if (running === this.gameRunning) return
+    if (running === this.gameRunning || this.simulating) return
     this.gameRunning = running
     if (!running) this.override = undefined
     this.push()
@@ -162,6 +162,46 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     if (latest) await this.showMatch(latest.matchId, true)
   }
 
+  private simulating = false
+
+  /** Replays the latest recorded match into the Live page round by round (no game needed).
+   *  Uses the real lobby service, so with a Ubisoft login it fetches real ranks. */
+  async simulate(stepMs = 4000): Promise<boolean> {
+    const latest = this.ctx.db.latestMatch()
+    if (!latest || this.simulating) return false
+    this.simulating = true
+    const sleep = () => new Promise((r) => setTimeout(r, stepMs))
+    try {
+      const rounds = this.ctx.db.roundsOfMatch(latest.matchId)
+      const first = rounds[0]!
+      const me = this.ctx.me() ?? first.recordingProfileId
+      const mySide = first.players.find((p) => p.profileId === me || p.profileId === first.recordingProfileId)?.side ?? 'attack'
+      // Round 1: what OCR would report at operator select.
+      this.matchId = null
+      this.cards.clear()
+      this.override = { mapKey: first.mapKey, side: mySide }
+      this.push([], 'loading')
+      await sleep()
+      this.override = undefined
+      this.matchId = latest.matchId
+      for (let i = 1; i <= rounds.length; i++) {
+        const subset = rounds.slice(0, i)
+        this.push(subset, i < rounds.length ? 'match' : 'ended')
+        if (i === 1) {
+          const names = Object.fromEntries(rounds.flatMap((r) => r.players).map((p) => [p.profileId, p.username]))
+          const { cards, error } = await this.lobby.cards(Object.keys(names), names)
+          for (const c of cards) this.cards.set(c.profileId, c)
+          this.lobbyError = error ?? null
+          this.push(subset, 'match')
+        }
+        await sleep()
+      }
+      return true
+    } finally {
+      this.simulating = false
+    }
+  }
+
   /** Recompute recommendations after settings/roster changes. */
-  refresh(): void { this.push() }
+  refresh(): void { if (!this.simulating) this.push() }
 }

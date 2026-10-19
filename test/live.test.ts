@@ -83,3 +83,20 @@ describe.runIf(hasLocal)('live engine (simulated replay drops)', () => {
     console.log('file → state ms:', times.map((t) => t.toFixed(0)).join(', '))
   })
 })
+
+describe('match simulation', () => {
+  it('steps loading → match per round → ended, with lobby cards', async () => {
+    const db = openDb(':memory:')
+    for (const r of rounds) db.saveRound(r)
+    const lobby = { cards: async (ids: string[]) => ({ cards: ids.map((id) => ({ profileId: id, name: '', loaded: true, level: 1, hoursPlayed: 1, ranked: null, season: null })) }) } as unknown as LobbyService
+    const engine = new LiveEngine(ctxFor(db), lobby, () => null)
+    const seen: string[] = []
+    engine.on('state', (s) => seen.push(`${s.phase}:${s.rounds.length}`))
+    expect(await engine.simulate(0)).toBe(true)
+    expect(seen[0]).toBe('loading:0')
+    expect(seen).toContain('match:1')
+    expect(seen.at(-1)).toBe('ended:6')
+    expect(engine.state.myTeam[0]?.card?.loaded).toBe(true)
+    expect(engine.state.mapKey).toBe('plane')
+  })
+})

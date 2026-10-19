@@ -20,7 +20,9 @@ import type { CatalogOverrides } from '../shared/catalog'
 import { API_METHODS, type AppStatus, type AuthResult, type RsApi, type Settings } from '../shared/ipc'
 
 const isSmoke = process.argv.includes('--smoke')
-if (!app.requestSingleInstanceLock()) app.quit()
+// Smoke/screenshot runs get their own profile so they never collide with an installed copy.
+if (isSmoke) app.setPath('userData', join(app.getPath('temp'), `rainbwstats-smoke-profile-${process.pid}`))
+else if (!app.requestSingleInstanceLock()) app.quit()
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -128,6 +130,7 @@ app.whenReady().then(async () => {
       const me = ctx.me()
       return { card: cards[0] ?? null, history: db.rankHistory(id), encounters: me && me !== id ? db.encounters(id, me) : 0, error: e2 }
     },
+    simulate: () => engine.simulate(),
     rescan: async () => { await engine.rescan(); return status() },
     catalog: async () => ({ operators: [...(dataset.get().operators ?? []), ...(db.getJson<NonNullable<CatalogOverrides['operators']>>('learnedOperators') ?? [])], maps: dataset.get().maps }),
     pickGameDir: async () => {
@@ -160,6 +163,11 @@ app.whenReady().then(async () => {
           await new Promise((r) => setTimeout(r, 700))
           writeFileSync(join(shots, `${i + 1}-${label.toLowerCase()}.png`), (await win!.webContents.capturePage()).toPNG())
         }
+        // Round-1 state (as OCR would report it) via the simulator's first step.
+        void engine.simulate(60_000)
+        await js(`[...document.querySelectorAll('.nav button')].find(b => b.textContent.trim() === 'Live')?.click()`)
+        await new Promise((r) => setTimeout(r, 900))
+        writeFileSync(join(shots, '0-round1.png'), (await win!.webContents.capturePage()).toPNG())
       }
       clearTimeout(fail)
       console.log(ok ? `SMOKE OK rounds=${db.counts().rounds}` : 'SMOKE FAIL: app root missing')

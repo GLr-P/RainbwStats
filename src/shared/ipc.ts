@@ -133,6 +133,8 @@ export interface RsApi {
   lookupPlayer(name: string): Promise<PlayerLookup>
   rescan(): Promise<AppStatus>
   pickGameDir(): Promise<string | null>
+  /** Replays the last recorded match into the Live page round by round (testing without playing). */
+  simulate(): Promise<boolean>
   /** Dataset + learned operators, so the renderer catalog matches main. */
   catalog(): Promise<CatalogOverrides>
   onLive(cb: (s: LiveState) => void): () => void
@@ -140,5 +142,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive'>[]
