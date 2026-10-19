@@ -102,7 +102,7 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 - [x] Profiles by name / by IDs (batched), full_profiles (rank/RP/max/W-L/K-D) batched, level/playtime
 - [x] Response guards (never crash on shape change), 429 backoff, 10-min per-player cache
 - [x] Rank snapshot on every fetch → history
-- [ ] Probe past-season rank endpoints (needs a real login → user check)
+- [x] Past-season ranks: the official Career module (r6s_career.iife.js) reads `RankingRankSeasonal` via /v1/profiles/stats + calendarEntryId. Fetched once per past season for you (v0.6.2, Me tab). Not yet checked against a live response (value assumed = full_profiles rank id; values outside 1–40 hidden). Next: lobby players / Players page
 - DoD: unit tests on recorded fixtures; manual test with a real login (user step).
 
 ### Phase 3 — Recommendation engine + roster + seed meta
