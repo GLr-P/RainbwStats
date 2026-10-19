@@ -2,10 +2,11 @@
 import type { Db } from './db'
 import type { Dataset } from '../shared/data/dataset'
 import type { ApiOps, LivePlayer, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
-import { baselineFor, recommend, type AggMap } from '../shared/recommend'
-import { allOperators, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
+import { baselineFor, recommend, ROLE_PRIOR, type AggMap } from '../shared/recommend'
+import { allOperators, operatorById, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
+import type { RoleTag } from '../shared/data/operators'
 import { SEED_SITES } from '../shared/data/maps'
-import { SITE_PICKS, sitePicksFor } from '../shared/data/sitePicks'
+import { KIND_FIT, SITE_PICKS, siteKind, sitePicksFor } from '../shared/data/sitePicks'
 import type { Side } from '../shared/types'
 
 export interface Ctx {
@@ -94,23 +95,52 @@ export function rosterIds(s: Settings, side: Side): string[] {
   return s.roster[side].map((k) => operatorByKey(k)?.id).filter((x): x is string => !!x)
 }
 
-export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: string | null; teammateOps?: string[]; banned?: string[]; topN?: number }): Recommendation[] {
+/** Who is on your team this round, for "does the team need a hard breacher / anti-breacher?". */
+export interface Teammate { ops: { operatorId: string; side: Side | null }[]; profileId: string }
+
+/** Probability that at least one teammate covers each role on this side. Per teammate: share of
+ *  their picks this match on this side with the role, else share of their (Ubisoft) rounds on such
+ *  operators, else a prior. Missing teammates (unknown lobby) count with the prior. */
+export function teamCoverFor(ctx: Ctx, side: Side, teammates: Teammate[]): Partial<Record<RoleTag, number>> {
+  const roles: RoleTag[] = ['hb', 'ah', 'uc', 'ap', 'in']
+  const lack = Object.fromEntries(roles.map((r) => [r, 1])) as Record<RoleTag, number>
+  const known = teammates.slice(0, 4)
+  for (const t of known) {
+    const played = t.ops.filter((o) => o.side === side).map((o) => operatorById(o.operatorId)).filter((o) => !!o)
+    let share: (r: RoleTag) => number
+    if (played.length) share = (r) => played.filter((o) => o.roles.includes(r)).length / played.length
+    else {
+      const rows = [...ctx.db.apiOpAggs({ profileId: t.profileId, season: 'all' })].map(([k, a]) => ({ op: operatorByKey(k), rounds: a.rounds })).filter((x) => x.op?.side === side)
+      const total = rows.reduce((n, x) => n + x.rounds, 0)
+      share = total >= 20 ? (r) => rows.filter((x) => x.op!.roles.includes(r)).reduce((n, x) => n + x.rounds, 0) / total : (r) => ROLE_PRIOR[r] ?? 0.25
+    }
+    for (const r of roles) lack[r] *= 1 - Math.min(0.95, share(r))
+  }
+  for (let i = known.length; i < 4; i++) for (const r of roles) lack[r] *= 1 - (ROLE_PRIOR[r] ?? 0.25)
+  return Object.fromEntries(roles.map((r) => [r, 1 - lack[r]]))
+}
+
+export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: string | null; teammates?: Teammate[]; banned?: string[]; topN?: number; anyOperator?: boolean }): Recommendation[] {
   const s = ctx.settings()
   const me = ctx.me()
   const mineF = (extra: object) => (me ? ctx.db.opAggs({ profileId: me, side: q.side, ...extra }) : new Map())
   const season = currentSeason(ctx)
   const myApi = me ? apiAggMap(ctx, q.side, { profileId: me, season: 'all' }).map : new Map()
   const crowdSeason = apiAggMap(ctx, q.side, { excludeProfileId: me ?? '', season })
-  // Comfort: replay recency plus how much you've played each op this season (Ubisoft).
+  // Familiarity: replay recency plus how much you've played each op this season (Ubisoft).
   const recent = recentWeights(ctx, q.side)
   if (me) for (const [id, a] of apiAggMap(ctx, q.side, { profileId: me, season }).map) recent.set(id, (recent.get(id) ?? 0) + a.rounds * 0.3)
-  // Curated specialists for this map (and site): operator keys → ids for this side.
+  // Curated tiers for this map (and site): operator keys → ids for this side.
   const ids = (keys?: string[]) => (keys ?? []).map((k) => operatorByKey(k)).filter((o) => o?.side === q.side).map((o) => o!.id)
-  const specialists = q.mapKey ? { map: ids(SITE_PICKS[q.mapKey]?.map[q.side]), site: q.site ? ids(sitePicksFor(q.mapKey, q.site)?.[q.side]) : undefined } : undefined
+  const siteTiers = q.mapKey && q.site ? sitePicksFor(q.mapKey, q.site)?.[q.side] : undefined
+  const kind = q.site ? siteKind(q.site) : undefined
+  const mix = q.mapKey && !q.site ? sitesFor(ctx, q.mapKey).slice(0, 5).map(({ site }) => ({ S: ids(sitePicksFor(q.mapKey!, site)?.[q.side].S), A: ids(sitePicksFor(q.mapKey!, site)?.[q.side].A), B: ids(KIND_FIT[q.side][siteKind(site)]) })) : undefined
+  const specialists = q.mapKey ? { map: ids(SITE_PICKS[q.mapKey]?.map[q.side]), S: ids(siteTiers?.S), A: ids(siteTiers?.A), B: kind ? ids(KIND_FIT[q.side][kind]) : undefined, kind: kind === 'upper' ? 'upper-floor' : kind === 'ground' ? 'ground-floor' : kind, mix } : undefined
   return recommend({
     specialists,
+    teamCover: teamCoverFor(ctx, q.side, q.teammates ?? []),
     crowdSeason: crowdSeason.map, crowdSeasonPlayers: crowdSeason.players,
-    side: q.side, mapKey: q.mapKey, site: q.site, roster: effectiveRoster(ctx, q.side), banned: q.banned, teammateOps: q.teammateOps,
+    side: q.side, mapKey: q.mapKey, site: q.site, roster: q.anyOperator ? [] : effectiveRoster(ctx, q.side), banned: q.banned,
     mine: {
       overall: mineF({}),
       api: myApi,
@@ -135,8 +165,8 @@ export function sitesFor(ctx: Ctx, mapKey: string): { site: string; rounds: numb
   return learned.length ? learned : (SEED_SITES[mapKey] ?? []).map((site) => ({ site, rounds: 0 }))
 }
 
-export function siteRecsFor(ctx: Ctx, mapKey: string, side: Side, perSite = 3): { site: string; recs: Recommendation[] }[] {
-  return sitesFor(ctx, mapKey).slice(0, 5).map(({ site }) => ({ site, recs: recsFor(ctx, { mapKey, side, site, topN: perSite }) }))
+export function siteRecsFor(ctx: Ctx, mapKey: string, side: Side, perSite = 3, teammates: Teammate[] = []): { site: string; recs: Recommendation[] }[] {
+  return sitesFor(ctx, mapKey).slice(0, 5).map(({ site }) => ({ site, recs: recsFor(ctx, { mapKey, side, site, topN: perSite, teammates }) }))
 }
 
 export function opStats(ctx: Ctx, f: { mine: boolean; mapKey?: string; site?: string; side?: Side; season?: string }): OpStatRow[] {
@@ -157,4 +187,12 @@ export function metaRows(ctx: Ctx, f: { mapKey?: string; site?: string; side: Si
       ? { operatorId: op.id, name: op.name, side: f.side, rounds: a.rounds, winRate: a.wins / a.rounds, pickRate: Math.min(1, a.rounds / teamRounds), source: 'replays' }
       : { operatorId: op.id, name: op.name, side: f.side, rounds: 0, winRate: base.get(op.id) ?? 0.5, pickRate: 0, source: 'baseline' }
   }).sort((a, b) => b.rounds - a.rounds || b.winRate - a.winRate)
+}
+
+/** Best operator outside your explicit roster, if it beats your top pick by 3+ points. */
+export function outsideRosterPick(ctx: Ctx, q: { mapKey: string; side: Side; site: string | null; teammates?: Teammate[] }, top: Recommendation | undefined): Recommendation | null {
+  const roster = rosterIds(ctx.settings(), q.side)
+  if (!roster.length) return null
+  const best = recsFor(ctx, { ...q, anyOperator: true, topN: 8 }).find((r) => !roster.includes(r.operatorId))
+  return best && (!top || best.score >= top.score + 3) ? best : null
 }

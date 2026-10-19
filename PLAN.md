@@ -63,13 +63,15 @@ How we hit them: cache-first UI, auth ticket refreshed in background before expi
 batched profile calls, aggregates materialized at ingest time (not at read time), parsing only the
 header for live and the full parse after, and OCR only on downscaled crops, only while Siege runs.
 
-### Recommendation model (pure function, unit-tested)
+### Recommendation model (v0.3: estimated round win chance, unit-tested)
 ```
-score(op) = wP·personal + wM·meta + wC·comfort + wT·teamfit  (−∞ if banned / not in roster)
-personal = Bayesian-shrunk win-rate & K/D delta on this map+site+side (falls back map → global)
-meta     = pick/win-rate delta on this map+site+side from dataset (crowd > local-all-players > seed)
-comfort  = recency-weighted play share
-teamfit  = covers missing roles given teammates' known picks (hard breach, intel, anti-gadget…)
+est(op) = yourBase + wP·personal + wS·site + wR·teamNeed + wM·meta + wC·familiarity   (weights ×0–2)
+yourBase  = your win rate on this side (Ubisoft all games, shrunk to 50%)
+personal  = your WR with the op (site→map→overall shrinkage, k = 6×minRounds) − yourBase
+site      = curated S/A tiers per site, B = fits this kind of site (basement/upper/ground), map list;
+            site unknown → average over the map's sites; hard breach/anti-breach value × team need
+teamNeed  = P(no teammate brings hard breach / anti-breach) from teammates' picks this match + mains
+meta      = replay crowd → season crowd (players met) → tempered baseline
 ```
 Every recommendation shows **why** and **sample size** ("62% WR · 21 rounds on 2F Kids/Dorms").
 Weights are user-configurable in Settings.
@@ -192,6 +194,7 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 | 2026-10-19 | 5 | check ✅ 35 tests. Simulated replay drops (real Y11S3 files copied into a watched dir): file → LiveState in **181–262 ms** (budget 300). Side prediction + match-end (incl. OT) tested |
 | 2026-10-19 | 6 | Windows OCR worker verified on this PC: boot 0.4 s, **24 ms/frame**, read CLUBHOUSE/DEFENSE/site correctly from a rendered frame. Matcher tests incl. OCR noise + no false positives. Real in-game frames untested (user check) |
 | 2026-10-19 | 4 | Screenshot review of every page found + fixed: misleading side tags, stale header side after match end, inflated pick rate in 3v3 (now exact team-rounds), baseline shown as win %, op chips overflowing, all-ops score penalty (now neutral 50 for no data) |
+| 2026-10-20 | 10 | User: picks felt wrong (one attacker everywhere; Kaid/Bandit/hard breachers always top; Tubarão should be CCTV). Rebuilt recommender as **estimated round win chance** with signed reasons. Richer S/A site tiers (Tubarão S on Clubhouse CCTV), site-kind fit tier, site-unknown averaging, team-need model for hard breach/anti-breach from teammates (new slider), stronger shrinkage (1 lucky round +0.9% not +3%), outside-roster suggestion. Real-data check (user roster has no hard breachers): attack now uses 8/10 roster ops across sites, defense 9; tests for every reported case. 62 tests |
 | 2026-10-19 | 9.4 | User report: same 3 picks on every map/site. Cause: no map/site-specific signal (Ubisoft stats have no map breakdown: probed, 0 per-map stat names; 1 replay). Fix: curated site specialists for 17 maps (sitePicks.ts, remote-overridable) as a new weight "site" (0.25; untouched old defaults migrated), role-diversity re-ranking (−10 per repeated primary role), empty roster = operators you've played 10+ rounds. Verified on real data: defense picks now vary per map/site (e.g. basements Frost/Echo/Smoke, CCTV Mute/Maestro); attack keeps Thermite/Ace (user: 70%/64% vs 37–48% on mains) with a site-varying 3rd pick. 62 tests |
 | 2026-10-19 | 9.3 | **Audit with the user's real data** (copied profile, real login, Siege running). Found + fixed: (1) OCR never worked on real captures: 24-bit PNG + console code page → JSON parse failure → 0 lines (now UTF-8 I/O, control-char strip, BGRA8); (2) OCR false positive "Border" from code on screen → OCR now only while Siege is the **foreground** process (user32 via the worker), map/side must be short standalone labels, both-sides frames ignored, 2-frame confirmation, mid-match OCR can only change side/site; (3) side is now re-read every round between rounds (prediction is a fallback) + "If you're on ATK/DEF" row; (4) Stop did nothing after a simulation finished / new sim silently ignored → cancellation tokens; (5) friends showed blank names (nickname alias) → real usernames; (6) "Unranked 0". Recommender audit: 558 static recs + 105 simulated live states with real players/mains → 0 side mismatches. 58 tests |
 | 2026-10-19 | 9.2 | Simulator per user feedback: no typing, auto-picks random players (friends first on your team, then met players) preferring ranked-this-season with games played (one batched rank lookup), optional random map. E2E via real IPC ✅ (random map → Bank, 5/5 ranked picked) |

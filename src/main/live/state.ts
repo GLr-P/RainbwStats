@@ -1,12 +1,12 @@
 // Pure construction of LiveState from stored rounds. No I/O beyond the Ctx queries.
 import type { Ctx } from '../services'
-import { mainsOf, recsFor, siteRecsFor } from '../services'
+import { mainsOf, outsideRosterPick, recsFor, siteRecsFor, type Teammate } from '../services'
 import type { LivePhase, LivePlayer, LiveState, PlayerCard, RoundSummary } from '../../shared/ipc'
 import type { RoundRecord, Side } from '../../shared/types'
 
 export const emptyLive = (gameRunning = false): LiveState => ({
   phase: gameRunning ? 'game' : 'idle', gameRunning, matchId: null, mapKey: null, side: null, site: null, nextRound: 1,
-  score: [0, 0], myTeam: [], enemyTeam: [], recommendations: [], otherSide: null, siteRecs: [], rounds: [], source: null, lobbyError: null,
+  score: [0, 0], myTeam: [], enemyTeam: [], recommendations: [], otherSide: null, outsideRoster: null, siteRecs: [], rounds: [], source: null, lobbyError: null,
   updatedAt: new Date().toISOString()
 })
 
@@ -77,7 +77,9 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
   const side = o.override?.side ?? predictSide(firstSide, nextRound, o.roundsPerMatch)
   const mapKey = o.override?.mapKey ?? last.mapKey
   const site = o.override?.site ?? null
-  const teammateOps: string[] = [] // picks for the upcoming round are unknown until it is recorded
+  // Teammates (not me) with their picks so far: used to judge whether the team needs a hard breacher etc.
+  const teammates = players.filter((p) => p.mine && !p.isMe).map((p) => ({ profileId: p.profileId, ops: p.ops }))
+  const recs = recsFor(ctx, { mapKey, side, site, teammates })
 
   return {
     phase: o.phase ?? (over ? 'ended' : 'match'),
@@ -86,9 +88,10 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
     mapKey, side, site, nextRound, score,
     myTeam: players.filter((p) => p.mine).sort(order).map(strip),
     enemyTeam: players.filter((p) => !p.mine).sort(order).map(strip),
-    recommendations: recsFor(ctx, { mapKey, side, site, teammateOps }),
-    otherSide: otherSidePicks(ctx, mapKey, side),
-    siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side),
+    recommendations: recs,
+    outsideRoster: outsideRosterPick(ctx, { mapKey, side, site, teammates }, recs[0]),
+    otherSide: otherSidePicks(ctx, mapKey, side, teammates),
+    siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side, 3, teammates),
     rounds: summaries,
     source: o.override ? 'ocr' : 'replay',
     lobbyError: o.lobbyError ?? null,
@@ -102,16 +105,18 @@ function overrideOnly(ctx: Ctx, o: BuildOpts): Partial<LiveState> {
   const side = o.override?.side
   if (!mapKey || !side) return {}
   const site = o.override?.site ?? null
+  const first = recsFor(ctx, { mapKey, side, site })
   return {
     phase: o.phase ?? 'loading', mapKey, side, site,
-    recommendations: recsFor(ctx, { mapKey, side, site }),
+    recommendations: first,
+    outsideRoster: outsideRosterPick(ctx, { mapKey, side, site }, first[0]),
     otherSide: otherSidePicks(ctx, mapKey, side),
     siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side),
     source: o.phase === 'idle' ? 'preview' : 'ocr'
   }
 }
 
-function otherSidePicks(ctx: Ctx, mapKey: string, side: Side): LiveState['otherSide'] {
+function otherSidePicks(ctx: Ctx, mapKey: string, side: Side, teammates: Teammate[] = []): LiveState['otherSide'] {
   const other: Side = side === 'attack' ? 'defense' : 'attack'
-  return { side: other, recs: recsFor(ctx, { mapKey, side: other, site: null, topN: 3 }) }
+  return { side: other, recs: recsFor(ctx, { mapKey, side: other, site: null, topN: 3, teammates }) }
 }

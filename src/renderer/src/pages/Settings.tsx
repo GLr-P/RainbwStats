@@ -53,10 +53,17 @@ export function SettingsPage({ settings: s, update, status, refreshStatus }: { s
 
       <div className="panel">
         <h2>Recommendation weights</h2>
-        {(['site', 'personal', 'meta', 'comfort', 'teamfit'] as const).map((k) => (
+        <div className="small muted">Picks are ranked by estimated round win chance. Each slider scales one part of that estimate (×1 = normal, ×0 = ignore, ×2 = double).</div>
+        {(['site', 'role', 'personal', 'meta', 'comfort'] as const).map((k) => (
           <label className="field" key={k}>
-            {({ personal: 'Your performance on this map/site', meta: 'Meta (replays, else baseline)', comfort: 'How much you play it', teamfit: 'Fills a team role', site: 'Fits this map/site (specialists)' })[k]}: {Math.round(s.weights[k] * 100)}
-            <input type="range" min={0} max={1} step={0.05} value={s.weights[k]} onChange={(e) => void weight(k, Number(e.target.value))} />
+            {({
+              site: 'Map/site specialists (curated tiers)',
+              role: 'Hard breach / anti-breach need (only when your team lacks one)',
+              personal: 'Your record with the operator',
+              meta: 'Meta (replays, players you met)',
+              comfort: 'Familiarity (how much you play it)'
+            })[k]}: ×{(s.weights[k] ?? 1).toFixed(1)}
+            <input type="range" min={0} max={2} step={0.1} value={s.weights[k] ?? 1} onChange={(e) => void weight(k, Number(e.target.value))} />
           </label>
         ))}
         <label className="field">Rounds before trusting your own stats: {s.minRounds}<input type="range" min={2} max={30} value={s.minRounds} onChange={(e) => void update({ minRounds: Number(e.target.value) })} /></label>

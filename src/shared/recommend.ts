@@ -1,4 +1,16 @@
-// Recommendation engine: pure, deterministic, explainable. See PLAN.md §2 "Recommendation model".
+// Recommendation engine: estimates "your chance to win the round with this operator" here.
+// Pure, deterministic, explainable. Every component is a win-rate delta (0.04 = +4 points):
+//
+//   est = yourBase + personal + site + teamNeed + meta + familiarity     (each × its user weight)
+//
+//   yourBase    your own win rate on this side (all games), the starting point
+//   personal    how much better/worse YOU do with this operator (map/site-aware, shrunk to your base)
+//   site        curated tiers for this site/map (S/A/map); for hard breach / anti-breach operators
+//               the value scales with whether your team actually needs one
+//   teamNeed    bonus when your team likely lacks a hard breacher (attack) / anti-breacher (defense),
+//               estimated from teammates' picks this match and their mains; small for other roles
+//   meta        crowd/season win rates (replays, players you met), else a tempered baseline
+//   familiarity a little extra for operators you play a lot
 import { allOperators, operatorById } from './catalog'
 import type { RoleTag } from './data/operators'
 import type { Recommendation, Weights } from './ipc'
@@ -13,30 +25,41 @@ export interface RecInput {
   /** Operator ids the user is willing to play; empty = whole side. */
   roster: string[]
   banned?: string[]
-  teammateOps?: string[]
-  /** Replay-derived stats (map/site detail). `api` = Ubisoft Career stats (all your games, no kills, no map). */
+  /** Replay-derived stats (map/site detail). `api` = Ubisoft Career stats (all your games, no map). */
   mine: { site?: AggMap; map?: AggMap; overall: AggMap; api?: AggMap }
   crowd: { site?: AggMap; map?: AggMap; overall?: AggMap }
-  /** Team-rounds behind the crowd scope (exact pick-rate denominator); estimated when absent. */
+  /** Team-rounds behind the crowd scope (exact pick-rate denominator). */
   crowdTeamRounds?: number
   /** Current-season operator stats of other players seen (Ubisoft Career), this side only. */
   crowdSeason?: AggMap
   crowdSeasonPlayers?: number
-  /** operator id → 0..1 prior strength (map-specific when available). */
+  /** operator id → 0..1 prior strength (only used, tempered, when no crowd data exists). */
   baseline: Map<string, number>
-  /** operator id → recency-weighted play count for the user. */
+  /** operator id → recency-weighted play amount for the user. */
   recent?: Map<string, number>
   weights: Weights
-  /** Curated specialists (operator ids) for this map, and for the site when one is given. */
-  specialists?: { map?: string[]; site?: string[] }
   minRounds: number
   topN: number
+  /** Curated tiers (operator ids): S/A for the site when given, and generally strong on the map. */
+  specialists?: { S?: string[]; A?: string[]; map?: string[]; B?: string[]; kind?: string; /** per-site tiers, used when the site is not known yet */ mix?: { S: string[]; A: string[]; B: string[] }[] }
+  /** Probability (0..1) that teammates already cover a role this round; missing = unknown. */
+  teamCover?: Partial<Record<RoleTag, number>>
 }
 
-const ESSENTIAL: Record<Side, RoleTag[]> = { attack: ['hb', 'uc', 'in'], defense: ['ah', 'ap', 'in'] }
-const ROLE_LABEL: Partial<Record<RoleTag, string>> = { hb: 'hard breach', uc: 'utility clear', in: 'intel', ah: 'anti hard-breach', ap: 'anti-projectile' }
-/** Crowd rounds at which crowd data and baseline weigh equally. */
-const CROWD_K = 40
+/** The role a team really needs one of, per side. */
+export const ESSENTIAL: Record<Side, RoleTag> = { attack: 'hb', defense: 'ah' }
+/** Useful roles that deserve a smaller "team lacks it" bonus. */
+const SECONDARY: Record<Side, RoleTag[]> = { attack: ['uc', 'in'], defense: ['ap', 'in'] }
+/** Chance a random teammate covers a role (used when nothing is known about the team). */
+export const ROLE_PRIOR: Partial<Record<RoleTag, number>> = { hb: 0.2, ah: 0.3, uc: 0.3, ap: 0.15, in: 0.4 }
+const ROLE_LABEL: Partial<Record<RoleTag, string>> = { hb: 'hard breach', uc: 'utility clear', in: 'intel', ah: 'anti-breach', ap: 'anti-projectile' }
+
+/** Win-rate deltas (before weights). */
+const SITE_S = 0.05, SITE_A = 0.03, SITE_B = 0.015, SITE_MAP = 0.012, SITE_OFF = -0.012
+const NEED_ESSENTIAL = 0.05, NEED_SECONDARY = 0.015, DUPLICATE_ESSENTIAL = -0.015
+const FAMILIAR = 0.015
+/** Points removed per already-picked operator with the same primary role (keeps the top 3 varied). */
+const DIVERSITY = 0.012
 
 const sum = (m: AggMap | undefined): Agg => {
   const t = emptyAgg()
@@ -46,128 +69,128 @@ const sum = (m: AggMap | undefined): Agg => {
 const get = (m: AggMap | undefined, id: string): Agg => m?.get(id) ?? emptyAgg()
 /** Bayesian shrinkage of a rate toward a prior with strength k. */
 const shrink = (hits: number, n: number, prior: number, k: number) => (hits + prior * k) / (n + k)
-const clamp01 = (x: number) => Math.min(1, Math.max(0, x))
 const pct = (x: number) => `${Math.round(x * 100)}%`
+const signed = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(Math.abs(x) < 0.01 ? 1 : 0)}%`
+
+/** Teammates' role coverage → probability nobody else brings it. */
+export const needOf = (cover: Partial<Record<RoleTag, number>> | undefined, role: RoleTag, teammates = 4): number =>
+  cover?.[role] !== undefined ? 1 - cover[role]! : (1 - (ROLE_PRIOR[role] ?? 0.25)) ** teammates
 
 export function recommend(inp: RecInput): Recommendation[] {
   const banned = new Set(inp.banned ?? [])
   const pool = (inp.roster.length ? inp.roster.map((id) => operatorById(id)).filter((o) => !!o) : allOperators(inp.side))
-    .filter((o) => o.side === inp.side && !banned.has(o.id))
+    .filter((o) => o.side === inp.side && !banned.has(o.id) && !o.id.startsWith('x:'))
+  const w: Partial<Weights> = inp.weights
 
-  // Priors from the user's own overall performance on this side.
+  // Your base win rate on this side: Ubisoft (all games) when it covers more rounds than replays.
   const replayAll = sum(inp.mine.overall), apiAll = sum(inp.mine.api)
-  const myAll = apiAll.rounds > replayAll.rounds ? { ...apiAll, kills: replayAll.kills, deaths: replayAll.deaths } : replayAll
-  const priorWr = shrink(myAll.wins, myAll.rounds, 0.5, 20)
-  const priorKpr = shrink(myAll.kills, myAll.rounds, 0.7, 20)
-  // Per-operator round outcomes are noisy: a prior worth ~2× "minRounds" keeps 1–3 lucky rounds from dominating.
-  const k = Math.max(1, inp.minRounds) * 2
+  const myAll = apiAll.rounds > replayAll.rounds ? apiAll : replayAll
+  const base = shrink(myAll.wins, myAll.rounds, 0.5, 30)
+  // Per-operator round outcomes are very noisy: your record needs ~6× "minRounds" to count fully.
+  const k = Math.max(1, inp.minRounds) * 6
 
-  // Crowd totals give pick-rate denominators (player-rounds on this side).
   const crowdScope = inp.site && inp.crowd.site ? inp.crowd.site : inp.mapKey && inp.crowd.map ? inp.crowd.map : inp.crowd.overall
-  const crowdTotal = sum(crowdScope).rounds
-  const sideOps = allOperators(inp.side).length || 1
-
   const seasonTotal = sum(inp.crowdSeason).rounds
-
-  const teamRoles = new Set((inp.teammateOps ?? []).flatMap((id) => operatorById(id)?.roles ?? []))
   const maxRecent = Math.max(1, ...pool.map((o) => inp.recent?.get(o.id) ?? 0))
+  const essential = ESSENTIAL[inp.side]
+  const essentialNeed = needOf(inp.teamCover, essential)
+  const hasSiteTiers = !!(inp.specialists?.S?.length || inp.specialists?.A?.length)
+  const hasMapTiers = !!inp.specialists?.map?.length
 
-  const recs = pool.map((op): Recommendation & { parts: number[] } => {
-    // Personal: hierarchical shrinkage overall → map → site.
+  const recs = pool.map((op) => {
+    const parts: { key: keyof Weights; value: number; reason: string }[] = []
+
+    // Personal: hierarchical shrinkage overall → map → site, all toward your base.
     const o = get(inp.mine.overall, op.id), m = get(inp.mine.map, op.id), s = get(inp.mine.site, op.id), a = get(inp.mine.api, op.id)
-    // Overall win rate: Ubisoft's count when it covers more rounds (all PCs/games); K/D only exists in replays.
     const oWr = a.rounds > o.rounds ? a : o
-    const wrO = shrink(oWr.wins, oWr.rounds, priorWr, k), kprO = shrink(o.kills, o.rounds, priorKpr, k)
-    const wrM = shrink(m.wins, m.rounds, wrO, k), kprM = shrink(m.kills, m.rounds, kprO, k)
-    const wrS = shrink(s.wins, s.rounds, wrM, k), kprS = shrink(s.kills, s.rounds, kprM, k)
-    const [wr, kpr] = inp.site ? [wrS, kprS] : inp.mapKey ? [wrM, kprM] : [wrO, kprO]
+    const wrO = shrink(oWr.wins, oWr.rounds, base, k)
+    const wrM = shrink(m.wins, m.rounds, wrO, k)
+    const wrS = shrink(s.wins, s.rounds, wrM, k)
+    const wr = inp.site ? wrS : inp.mapKey ? wrM : wrO
     const scope: Recommendation['scope'] = inp.site && s.rounds ? 'site' : inp.mapKey && m.rounds ? 'map' : oWr.rounds ? 'overall' : 'none'
     const shown = scope === 'site' ? s : scope === 'map' ? m : oWr
-    const fromApi = scope === 'overall' && oWr === a
-    // Rank by a lower confidence bound so tiny samples don't win on luck.
-    const oN = oWr.rounds
-    const nEff = inp.site ? s.rounds + 0.5 * m.rounds + 0.25 * oN : inp.mapKey ? m.rounds + 0.5 * oN : oN
-    const wrLcb = wr - 0.5 * Math.sqrt((wr * (1 - wr)) / (nEff + k))
-    // Relative to an op with no data (same penalty, prior mean) so "no data" scores a neutral 0.5.
-    const priorLcb = priorWr - 0.5 * Math.sqrt((priorWr * (1 - priorWr)) / k)
-    const personal = clamp01(0.5 + (wrLcb - priorLcb) * 2.5 + (kpr - priorKpr) * 0.5)
+    if (shown.rounds) {
+      const where = scope === 'site' ? 'this site' : scope === 'map' ? 'this map' : 'all your games'
+      parts.push({ key: 'personal', value: wr - base, reason: `You: ${pct(shown.wins / shown.rounds)} in ${shown.rounds} rds (${where})` })
+    }
 
-    // Meta: crowd win-rate delta + pick share, blended with baseline by sample size.
-    const c = get(crowdScope, op.id)
-    const base = inp.baseline.get(op.id) ?? 0.5
-    const crowdWr = shrink(c.wins, c.rounds, 0.5, 30)
-    // Pick rate ≈ share of team-rounds featuring the op (5 player slots per team-round).
-    const pickRate = inp.crowdTeamRounds ? Math.min(1, c.rounds / inp.crowdTeamRounds) : crowdTotal ? Math.min(1, (c.rounds * 5) / crowdTotal) : 0
-    const relPick = crowdTotal ? (c.rounds / crowdTotal) * sideOps : 1
-    const pickTerm = Math.max(-0.15, Math.min(0.15, 0.05 * Math.log2(Math.max(relPick, 1 / 64))))
-    const crowdScore = clamp01(0.5 + (crowdWr - 0.5) * 3 + pickTerm)
-    const wCrowd = c.rounds / (c.rounds + CROWD_K)
-    // Season meta from players you've met (Ubisoft stats, no map detail) sits between replays and baseline.
-    const sc = get(inp.crowdSeason, op.id)
-    const scTotal = seasonTotal
-    const scWr = shrink(sc.wins, sc.rounds, 0.5, 50)
-    const scRel = scTotal ? (sc.rounds / scTotal) * sideOps : 1
-    const scScore = clamp01(0.5 + (scWr - 0.5) * 3 + Math.max(-0.15, Math.min(0.15, 0.05 * Math.log2(Math.max(scRel, 1 / 64)))))
-    const wSeason = sc.rounds / (sc.rounds + 200)
-    const prior = wSeason * scScore + (1 - wSeason) * base
-    const meta = wCrowd * crowdScore + (1 - wCrowd) * prior
+    // Site fit. Hard breach / anti-breach value depends on whether the team needs one.
+    const isEssential = op.roles.includes(essential)
+    const tier: Recommendation['tier'] = inp.specialists?.S?.includes(op.id) ? 'S' : inp.specialists?.A?.includes(op.id) ? 'A'
+      : inp.specialists?.B?.includes(op.id) ? 'B' : inp.specialists?.map?.includes(op.id) ? 'map' : null
+    let siteDelta = tier === 'S' ? SITE_S : tier === 'A' ? SITE_A : tier === 'B' ? SITE_B : tier === 'map' ? (hasSiteTiers ? SITE_MAP * 0.5 : SITE_MAP * 2) : hasSiteTiers || hasMapTiers ? SITE_OFF : 0
+    if (isEssential && siteDelta > 0) siteDelta *= 0.35 + 0.65 * essentialNeed
+    // Site not known yet: expected site fit over the map's sites (strong on 2 of 4 → about half).
+    const mix = inp.specialists?.mix
+    let mixReason: string | null = null
+    if (!hasSiteTiers && mix?.length) {
+      const per = mix.map((t) => (t.S.includes(op.id) ? SITE_S : t.A.includes(op.id) ? SITE_A : t.B.includes(op.id) ? SITE_B : SITE_OFF))
+      siteDelta = per.reduce((n, v) => n + v, 0) / per.length + (tier === 'map' ? SITE_MAP * 0.5 : 0)
+      if (isEssential && siteDelta > 0) siteDelta *= 0.35 + 0.65 * essentialNeed
+      const strong = per.filter((v) => v >= SITE_A).length
+      mixReason = strong ? `Strong on ${strong} of ${per.length} sites` : per.some((v) => v > 0) ? 'Fits some sites here' : 'Not a pick on this map'
+    }
+    if (siteDelta !== 0) {
+      const reason = tier === 'S' ? 'Site specialist (S)' : tier === 'A' ? 'Strong on this site (A)' : tier === 'B' ? `Fits ${inp.specialists?.kind ?? 'this'} sites` : tier === 'map' ? 'Good on this map' : 'Not a pick for this site'
+      parts.push({ key: 'site', value: siteDelta, reason: mixReason ?? reason })
+    }
 
-    // Comfort: how much the user actually plays it (recency-weighted).
+    // Team need: does the team lack what this operator brings?
+    if (isEssential) {
+      const label = ROLE_LABEL[essential]!
+      const v = NEED_ESSENTIAL * essentialNeed + DUPLICATE_ESSENTIAL * (1 - essentialNeed)
+      const cap = `${label[0]!.toUpperCase()}${label.slice(1)}`
+      const reason = essentialNeed >= 0.65 ? `Team likely lacks ${label}` : essentialNeed <= 0.35 ? `${cap} likely covered` : `Team may need ${label}`
+      parts.push({ key: 'role', value: v, reason })
+    } else {
+      const fills = SECONDARY[inp.side].filter((r) => op.roles.includes(r))
+      const best = fills.map((r) => ({ r, need: needOf(inp.teamCover, r) })).sort((x, y) => y.need - x.need)[0]
+      if (best && best.need > 0.3) parts.push({ key: 'role', value: NEED_SECONDARY * best.need, reason: `Adds ${ROLE_LABEL[best.r]}` })
+    }
+
+    // Meta: replay crowd (map/site detail) → season crowd (players you met) → tempered baseline.
+    const c = get(crowdScope, op.id), sc = get(inp.crowdSeason, op.id)
+    const wC = c.rounds / (c.rounds + 60), wS = sc.rounds / (sc.rounds + 200)
+    const baseDelta = ((inp.baseline.get(op.id) ?? 0.55) - 0.55) * 0.06
+    const metaDelta = 0.6 * (wC * (shrink(c.wins, c.rounds, 0.5, 60) - 0.5) + (1 - wC) * (wS * (shrink(sc.wins, sc.rounds, 0.5, 200) - 0.5) + (1 - wS) * baseDelta))
+    const metaReason = c.rounds >= 10 ? `Meta here: ${pct(c.wins / c.rounds)} WR (${c.rounds} rds)`
+      : sc.rounds >= 20 ? `Season meta: ${pct(sc.wins / sc.rounds)} WR · in ${pct(Math.min(1, (sc.rounds * 5) / Math.max(1, seasonTotal)))} of rounds (${inp.crowdSeasonPlayers ?? 0} players)`
+      : 'Baseline strength'
+    if (Math.abs(metaDelta) >= 0.002) parts.push({ key: 'meta', value: metaDelta, reason: metaReason })
+
+    // Familiarity.
     const comfort = (inp.recent?.get(op.id) ?? 0) / maxRecent
+    if (comfort > 0.15) parts.push({ key: 'comfort', value: FAMILIAR * comfort, reason: comfort >= 0.6 ? 'You play it a lot' : 'You play it' })
 
-    // Team fit: fills an essential role the known teammates lack (mild prior when unknown).
-    const missing = ESSENTIAL[inp.side].filter((r) => !teamRoles.has(r))
-    const fills = op.roles.filter((r) => missing.includes(r))
-    const teamfit = inp.teammateOps?.length ? (fills.length ? 1 : 0.3) : fills.length ? 0.65 : 0.45
-
-    // Site fit: curated specialists for this site (strongest) or map. Neutral when no curated data.
-    const onSite = !!inp.specialists?.site?.includes(op.id)
-    const onMap = !!inp.specialists?.map?.includes(op.id)
-    const hasSpecs = !!(inp.specialists?.site?.length || inp.specialists?.map?.length)
-    const sitefit = !hasSpecs ? 0.5 : onSite ? 1 : onMap ? (inp.specialists?.site?.length ? 0.7 : 1) : 0.3
-
-    const w = inp.weights
-    const ws = w.site ?? 0
-    const parts = [personal, meta, comfort, teamfit, sitefit]
-    const wsum = w.personal + w.meta + w.comfort + w.teamfit + ws || 1
-    const score = Math.round(((w.personal * personal + w.meta * meta + w.comfort * comfort + w.teamfit * teamfit + ws * sitefit) / wsum) * 100)
-
-    const reasons: string[] = []
-    const where = scope === 'site' ? 'this site' : scope === 'map' ? 'this map' : 'overall'
-    if (fromApi) reasons.push(`You: ${pct(shown.wins / shown.rounds)} WR in ${shown.rounds} rds (all your games)`)
-    else if (shown.rounds) reasons.push(`You: ${pct(shown.wins / shown.rounds)} WR, ${(shown.kills / Math.max(1, shown.deaths)).toFixed(2)} K/D in ${shown.rounds} rds (${where})`)
-    if (c.rounds >= 5) reasons.push(`Meta: ${pct(c.wins / c.rounds)} WR · ${pct(pickRate)} pick (${c.rounds} rds)`)
-    else if (sc.rounds >= 20) reasons.push(`Season meta: ${pct(sc.wins / sc.rounds)} WR · in ${pct(Math.min(1, (sc.rounds * 5) / Math.max(1, scTotal)))} of rounds (${inp.crowdSeasonPlayers ?? 0} players)`)
-    else reasons.push(`Baseline strength ${pct(base)}`)
-    if (comfort >= 0.6) reasons.push('One of your most played')
-    if (onSite) reasons.push('Site specialist')
-    else if (onMap) reasons.push('Strong on this map')
-    if (inp.teammateOps?.length && fills.length) reasons.push(`Team lacks ${fills.map((r) => ROLE_LABEL[r] ?? r).join(' + ')}`)
-
-    return { operatorId: op.id, name: op.name, score, reasons, personal: shown, scope, metaRounds: c.rounds, baseline: c.rounds < 5 && sc.rounds < 20, parts }
+    const est = Math.min(0.85, Math.max(0.15, base + parts.reduce((n, p) => n + (w[p.key] ?? 1) * p.value, 0)))
+    const reasons = parts
+      .map((p) => ({ ...p, eff: (w[p.key] ?? 1) * p.value }))
+      .filter((p) => Math.abs(p.eff) >= 0.004 || p.key === 'personal')
+      .sort((x, y) => Math.abs(y.eff) - Math.abs(x.eff))
+      .slice(0, 3)
+      .map((p) => `${p.reason} ${signed(p.eff)}`)
+    return {
+      operatorId: op.id, name: op.name, score: Math.round(est * 100), est, reasons, personal: shown, scope,
+      metaRounds: c.rounds, baseline: c.rounds < 10 && sc.rounds < 20, tier
+    }
   })
 
-  const ranked = recs.sort((a, b) => b.score - a.score || b.parts[1]! - a.parts[1]! || a.name.localeCompare(b.name))
-  // Role diversity: each later pick that repeats a role already picked (e.g. a second hard
-  // breacher) loses points, so the list offers real alternatives instead of near-duplicates.
+  const ranked = recs.sort((x, y) => y.est - x.est || x.name.localeCompare(y.name))
+  // Role diversity: a later pick repeating an already-picked primary role loses a little.
   const picked: typeof ranked = []
   const roleOf = (id: string) => operatorById(id)?.roles[0]
   while (picked.length < Math.max(1, inp.topN) && picked.length < ranked.length) {
     let best: (typeof ranked)[number] | undefined
-    let bestScore = -Infinity
+    let bestEst = -Infinity
     for (const r of ranked) {
       if (picked.some((p) => p.operatorId === r.operatorId)) continue
-      const dupes = picked.filter((p) => roleOf(p.operatorId) === roleOf(r.operatorId)).length
-      const adjusted = r.score - DIVERSITY_PENALTY * dupes
-      if (adjusted > bestScore) { bestScore = adjusted; best = r }
+      const adjusted = r.est - DIVERSITY * picked.filter((p) => roleOf(p.operatorId) === roleOf(r.operatorId)).length
+      if (adjusted > bestEst) { bestEst = adjusted; best = r }
     }
-    picked.push({ ...best!, score: Math.max(0, Math.round(bestScore)) })
+    picked.push(best!)
   }
-  return picked.map(({ parts: _parts, ...r }) => r)
+  return picked.map(({ est: _est, ...r }) => r)
 }
-
-/** Score points removed per already-picked operator with the same primary role. */
-const DIVERSITY_PENALTY = 10
 
 /** Baseline priors (by operator id) for a map from a dataset keyed by operator key. */
 export function baselineFor(ds: { baseline: Record<string, number>; mapBaseline?: Record<string, Record<string, number>> }, mapKey: string | null): Map<string, number> {

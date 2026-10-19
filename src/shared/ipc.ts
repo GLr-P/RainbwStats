@@ -16,12 +16,13 @@ export interface PlayerCard {
 export interface Recommendation {
   operatorId: string
   name: string
-  score: number // 0..100
+  score: number // estimated round win chance, %
   reasons: string[]
   personal: Agg // this map/site/side (or broader scope, see scope)
   scope: 'site' | 'map' | 'overall' | 'none'
   metaRounds: number
   baseline: boolean // meta came from seed tiers only
+  tier: 'S' | 'A' | 'B' | 'map' | null // curated site tier (B = fits this kind of site)
 }
 
 export interface LivePlayer {
@@ -54,6 +55,8 @@ export interface LiveState {
   recommendations: Recommendation[]
   /** Top picks for the other side, in case the predicted side is wrong. */
   otherSide: { side: Side; recs: Recommendation[] } | null
+  /** A clearly better pick that is not in your roster (only when your roster is explicit). */
+  outsideRoster: Recommendation | null
   siteRecs: { site: string; recs: Recommendation[] }[]
   rounds: RoundSummary[]
   source: 'replay' | 'ocr' | 'preview' | 'simulation' | null
@@ -61,7 +64,8 @@ export interface LiveState {
   updatedAt: string
 }
 
-export interface Weights { personal: number; meta: number; comfort: number; teamfit: number; site: number }
+/** Multipliers (0–2, default 1) on each part of the estimated win chance. */
+export interface Weights { personal: number; meta: number; site: number; role: number; comfort: number }
 
 export interface ThemeSettings {
   accent: string

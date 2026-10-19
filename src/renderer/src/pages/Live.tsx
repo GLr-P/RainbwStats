@@ -60,6 +60,13 @@ function Picks({ s }: { s: LiveState }) {
           {s.recommendations.map((r, i) => <Pick key={r.operatorId} r={r} i={i} />)}
         </div>
       )}
+      {s.outsideRoster && (
+        <div className="row small" style={{ marginTop: 10, gap: 8 }}>
+          <span className="warn">Outside your roster:</span>
+          <span style={{ fontFamily: 'var(--head)', fontWeight: 700, fontSize: '1rem', textTransform: 'uppercase' }}>{s.outsideRoster.name} {s.outsideRoster.score}%</span>
+          <span className="muted">{s.outsideRoster.reasons.slice(0, 2).join(' · ')}</span>
+        </div>
+      )}
       {s.otherSide && s.otherSide.recs.length > 0 && (
         <div className="row small" style={{ marginTop: 10, gap: 8 }}>
           <span className="muted">If you're on</span><SideTag side={s.otherSide.side} />
@@ -75,8 +82,9 @@ function Pick({ r, i }: { r: Recommendation; i: number }) {
     <div className="pick">
       <div className="rank">{i + 1}</div>
       <div className="name">{r.name}</div>
-      <div className="score num" title="Fit score 0–100">{r.score}</div>
-      <Meter value={r.score} />
+      <div className="score num" title="Estimated chance to win the round with this operator">{r.score}%<span className="faint" style={{ fontSize: '0.7rem', marginLeft: 6, letterSpacing: '0.06em' }}>EST. WIN</span></div>
+      {/* Meter spans the realistic 35–70% range so differences are visible. */}
+      <Meter value={((r.score - 35) / 35) * 100} />
       <div className="why">{r.reasons.map((x) => <span key={x}>{x}</span>)}</div>
     </div>
   )
@@ -90,7 +98,7 @@ function SiteBreakdown({ s }: { s: LiveState }) {
         {s.siteRecs.map((x) => (
           <div className="site" key={x.site}>
             <div className="t" title={x.site}>{x.site}</div>
-            <ol>{x.recs.map((r) => <li key={r.operatorId}>{r.name}<span>{r.score}</span></li>)}</ol>
+            <ol>{x.recs.map((r) => <li key={r.operatorId}>{r.name}<span>{r.score}%</span></li>)}</ol>
           </div>
         ))}
       </div>
