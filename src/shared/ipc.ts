@@ -162,7 +162,8 @@ export interface RsApi {
   /** Friends (Ubisoft) and players you've met, for the simulator. */
   simPeople(): Promise<{ people: SimPerson[]; error: string | null }>
   /** Simulates a match on any map with chosen players (in memory only). */
-  simulateMatch(r: SimRequest): Promise<{ ok: boolean; error?: string; unresolved?: string[] }>
+  /** Empty teams = auto-pick random players (friends + met), preferring ranked-this-season. mapKey 'random' allowed. */
+  simulateMatch(r: SimRequest): Promise<{ ok: boolean; error?: string; unresolved?: string[]; ranked?: number }>
   stopSimulation(): Promise<void>
   updateStatus(): Promise<UpdateStatus>
   checkForUpdates(): Promise<UpdateStatus>

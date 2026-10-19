@@ -16,6 +16,7 @@ import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
 import { apiOps, currentSeason, mainsOf, metaRows, opStats, sitesFor, type Ctx } from './services'
 import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
+import { SEED_SITES } from '../shared/data/maps'
 import { baselineFor } from '../shared/recommend'
 import { applyLearned } from './replay/ingest'
 import { findGameDirs, replayRootOf } from './replay/locate'
@@ -173,8 +174,30 @@ app.whenReady().then(async () => {
         return null
       }
       const team = async (qs: string[]) => (await Promise.all(qs.map(resolve))).filter((p): p is { profileId: string; name: string } => !!p)
-      const [mine, enemy] = await Promise.all([team(req.myTeam), team(req.enemyTeam)])
-      if (!enemy.length) return { ok: false, error: 'Add at least one enemy player', unresolved }
+      let [mine, enemy] = await Promise.all([team(req.myTeam), team(req.enemyTeam)])
+      let activeCount: number | undefined
+      let activeIds = new Set<string>()
+      const cards0 = (id: string) => activeIds.has(id)
+      if (req.mapKey === 'random') { const keys = Object.keys(SEED_SITES); req = { ...req, mapKey: keys[Math.floor(Math.random() * keys.length)]! } }
+      if (!req.myTeam.some((s) => s.trim()) && !req.enemyTeam.some((s) => s.trim())) {
+        // Auto: random players from friends + people you've met, preferring ones ranked this season
+        // with games played. Ranks come from one batched lookup (cached), friends go on your team first.
+        let friends: { profileId: string; name: string }[] = []
+        if (ubi.canAuth) { try { friends = await ubi.friends() } catch { /* met players only */ } }
+        const pool = new Map<string, { profileId: string; name: string; friend: boolean }>()
+        for (const f of friends) if (f.profileId !== me) pool.set(f.profileId, { ...f, friend: true })
+        for (const p of db.recentPlayers(60, me)) if (!pool.has(p.profileId)) pool.set(p.profileId, { ...p, friend: false })
+        const people = [...pool.values()].slice(0, 80)
+        const { cards } = await lobby.cards(people.map((p) => p.profileId), Object.fromEntries(people.map((p) => [p.profileId, p.name])))
+        const active = new Set(cards.filter((c) => (c.ranked?.rank ?? 0) > 0 && (c.season?.wins ?? 0) + (c.season?.losses ?? 0) > 0).map((c) => c.profileId))
+        activeCount = active.size
+        activeIds = active
+        const shuffled = <T,>(xs: T[]) => xs.map((x) => [Math.random(), x] as const).sort((a, b) => a[0] - b[0]).map(([, x]) => x)
+        const ordered = [...shuffled(people.filter((p) => active.has(p.profileId))), ...shuffled(people.filter((p) => !active.has(p.profileId)))]
+        mine = [...ordered.filter((p) => p.friend), ...ordered.filter((p) => !p.friend)].slice(0, 4)
+        enemy = ordered.filter((p) => !mine.includes(p)).slice(0, 5)
+      }
+      if (!enemy.length) return { ok: false, error: 'No players to simulate with yet: sign in (friends) or play a match first', unresolved }
       // Their real mains (Ubisoft stats) drive the simulated picks.
       await opsync.syncPlayers([me, ...mine.map((p) => p.profileId), ...enemy.map((p) => p.profileId)])
       const asSim = (p: { profileId: string; name: string }): SimPlayer => ({ ...p, mains: mainsOf(ctx, p.profileId, 8) })
@@ -184,7 +207,7 @@ app.whenReady().then(async () => {
         sites: sitesFor(ctx, req.mapKey).map((s) => s.site), baseline: baselineFor(dataset.get(), req.mapKey)
       })
       void engine.playRounds(rounds, 4000)
-      return { ok: true, unresolved }
+      return { ok: true, unresolved, ranked: activeCount === undefined ? undefined : [...mine, ...enemy].filter((p) => cards0(p.profileId)).length }
     },
     stopSimulation: async () => engine.stopSimulation(),
     updateStatus: async () => updates.status,
@@ -243,7 +266,7 @@ app.whenReady().then(async () => {
         }
         // Full simulator path through the real IPC API: round 1 (as OCR would report it), then mid-match.
         await js(`[...document.querySelectorAll('.nav button')].find(b => b.textContent.trim() === 'Live')?.click()`)
-        const started = await js(`window.rs.simulateMatch({ mapKey: 'clubhouse', side: 'defense', myTeam: ['Player02', 'Player03'], enemyTeam: ['Player04', 'Player05', 'Player06', 'NoSuchPlayer'] })`)
+        const started = await js(`window.rs.simulateMatch({ mapKey: 'random', side: 'defense', myTeam: [], enemyTeam: [] })`)
         console.log('SIM', JSON.stringify(started))
         await new Promise((r) => setTimeout(r, 1500))
         writeFileSync(join(shots, '0-round1.png'), (await win!.webContents.capturePage()).toPNG())
