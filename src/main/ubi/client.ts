@@ -5,6 +5,9 @@ export const UBI = {
   sessions: 'https://public-ubiservices.ubi.com/v3/profiles/sessions',
   base: 'https://public-ubiservices.ubi.com',
   appId: '4391c956-8943-48eb-8859-07b0778f47b9',
+  /** App ids tried, in order, for email/password logins. Since 2026-10 Ubisoft's edge bot-protection
+   *  blocks Basic-auth logins for `appId` (HTML 403), while the Ubisoft Connect PC id still works. */
+  loginAppIds: ['f68a4bb5-608a-4ff2-8123-be8ef797e0a6', '4391c956-8943-48eb-8859-07b0778f47b9'],
   advancedAppId: 'e3d5ea9e-50bd-43b7-88bf-39794f4e3d40',
   xplaySpace: '0d2ae42d-4c27-4cb7-af6c-2099062302bb',
   userAgent: 'UbiServices_SDK_2020.Release.58_PC64_ansi_static'
@@ -47,7 +50,7 @@ export interface UbiDeps {
 
 export class UbiError extends Error {
   readonly status: number
-  readonly code: 'auth' | 'twoFactor' | 'rateLimited' | 'http' | 'shape' | 'noCredentials'
+  readonly code: 'auth' | 'twoFactor' | 'rateLimited' | 'http' | 'shape' | 'noCredentials' | 'blocked'
   constructor(code: UbiError['code'], message: string, status = 0) {
     super(message)
     this.code = code
@@ -92,7 +95,7 @@ export function toSession(data: unknown): Session {
 
 export class UbiClient {
   private auth: StoredAuth
-  private pending2fa: string | null = null
+  private pending2fa: { ticket: string; appId: string } | null = null
   private inflight: Promise<Session> | null = null
   private readonly d: UbiDeps
 
@@ -120,7 +123,11 @@ export class UbiClient {
       body: JSON.stringify({ rememberMe: true })
     })
     if (res.status === 429) throw new UbiError('rateLimited', 'Ubisoft rate limit: wait a few minutes', 429)
-    const body: unknown = await res.json().catch(() => null)
+    const text = await res.text().catch(() => '')
+    // An HTML page instead of JSON is Ubisoft's edge bot-protection, not a credentials problem.
+    if (!res.ok && /^\s*</.test(text)) throw new UbiError('blocked', 'Ubisoft blocked this sign-in method (bot protection). Try "Sign in with Ubisoft" instead.', res.status)
+    let body: unknown = null
+    try { body = JSON.parse(text) } catch { /* empty / non-JSON */ }
     if (!res.ok) throw new UbiError('auth', (isObj(body) && s(body['message'])) || `login failed (${res.status})`, res.status)
     return body
   }
@@ -128,34 +135,50 @@ export class UbiClient {
   /** Email/password login. Returns 'twoFactor' when a code is required (call submitTwoFactor). */
   async login(c: Credentials): Promise<'ok' | 'twoFactor'> {
     const basic = 'Basic ' + Buffer.from(`${c.email}:${c.password}`).toString('base64')
-    const body = await this.postSession(basic, UBI.appId)
-    if (isObj(body) && !s(body['ticket']) && s(body['twoFactorAuthenticationTicket'])) {
-      this.pending2fa = s(body['twoFactorAuthenticationTicket'])
-      return 'twoFactor'
+    let lastBlock: UbiError | null = null
+    for (const appId of UBI.loginAppIds) {
+      let body: unknown
+      try { body = await this.postSession(basic, appId) } catch (e) {
+        if (e instanceof UbiError && e.code === 'blocked') { lastBlock = e; continue } // try the next app id
+        throw e
+      }
+      if (isObj(body) && !s(body['ticket']) && s(body['twoFactorAuthenticationTicket'])) {
+        this.pending2fa = { ticket: s(body['twoFactorAuthenticationTicket']), appId }
+        return 'twoFactor'
+      }
+      await this.adopt(toSession(body), appId, 'password')
+      return 'ok'
     }
-    this.setBase(toSession(body), 'password', UBI.appId)
-    return 'ok'
+    throw lastBlock ?? new UbiError('auth', 'login failed')
   }
 
   async submitTwoFactor(code: string): Promise<void> {
     if (!this.pending2fa) throw new UbiError('twoFactor', 'no pending two-factor login')
-    const body = await this.postSession(`ubi_2fa_v1 t=${this.pending2fa}`, UBI.appId, { 'Ubi-2FACode': code.trim() })
+    const { ticket, appId } = this.pending2fa
+    const body = await this.postSession(`ubi_2fa_v1 t=${ticket}`, appId, { 'Ubi-2FACode': code.trim() })
     this.pending2fa = null
-    this.setBase(toSession(body), 'password', UBI.appId)
+    await this.adopt(toSession(body), appId, 'password')
   }
 
-  /** Signs in with a session captured from Ubisoft's own login page (Xbox/PSN/Facebook/email).
-   *  The web ticket is exchanged for a session of our app id, like the advanced session. */
-  async adoptWebSession(web: WebSession): Promise<void> {
+  /** Signs in with a session captured from Ubisoft's own login page (Xbox/PSN/Facebook/email). */
+  adoptWebSession(web: WebSession): Promise<void> {
+    const sess: Session = { ticket: web.ticket, sessionId: '', expiration: new Date(this.d.now() + 2.5 * 3600_000).toISOString(), profileId: '', rememberMeTicket: web.rememberMeTicket }
+    return this.adopt(sess, web.appId, 'web')
+  }
+
+  /** Stores a session obtained under any app id. Foreign tickets are exchanged for a session of
+   *  our app id (like the advanced session); if Ubisoft refuses, the foreign session is used as-is. */
+  private async adopt(sess: Session, appId: string, method: StoredAuth['method']): Promise<void> {
+    if (appId === UBI.appId) { this.setBase(sess, method, appId); return }
     let own: Session | null = null
-    if (web.appId !== UBI.appId) {
-      try { own = toSession(await this.postSession(`Ubi_v1 t=${web.ticket}`, UBI.appId)) } catch (e) {
-        if (e instanceof UbiError && e.code === 'rateLimited') throw e
-        // Exchange refused: keep using the web session under its own app id.
-      }
+    try { own = toSession(await this.postSession(`Ubi_v1 t=${sess.ticket}`, UBI.appId)) } catch (e) {
+      if (e instanceof UbiError && e.code === 'rateLimited') throw e
     }
-    const sess = own ?? { ticket: web.ticket, sessionId: '', expiration: new Date(this.d.now() + 2.5 * 3600_000).toISOString(), profileId: '', appId: web.appId }
-    this.setBase(sess, 'web', web.appId, web.rememberMeTicket)
+    if (own) {
+      // Prefer a remember-me ticket for our own app id; else keep the one from the original app.
+      if (own.rememberMeTicket) this.setBase(own, method, UBI.appId)
+      else this.setBase(own, method, appId, sess.rememberMeTicket)
+    } else this.setBase({ ...sess, appId }, method, appId, sess.rememberMeTicket)
   }
 
   logout(): void { this.auth = {}; this.d.saveAuth(this.auth) }
@@ -174,8 +197,7 @@ export class UbiClient {
     if (rm) {
       try {
         const fresh = toSession(await this.postSession(`rm_v1 t=${rm.ticket}`, rm.appId))
-        if (rm.appId === UBI.appId) this.setBase(fresh, undefined, rm.appId, fresh.rememberMeTicket ?? rm.ticket)
-        else await this.adoptWebSession({ ticket: fresh.ticket, appId: rm.appId, rememberMeTicket: fresh.rememberMeTicket ?? rm.ticket })
+        await this.adopt({ ...fresh, rememberMeTicket: fresh.rememberMeTicket ?? rm.ticket }, rm.appId, this.auth.method)
         return this.auth.base!
       } catch (e) {
         if (e instanceof UbiError && e.code === 'rateLimited') throw e

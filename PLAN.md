@@ -152,7 +152,7 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 | New season adds unknown operator/map IDs | Unknown IDs → `Unknown(id)`, never throw; ID tables in remote dataset; role inferred from team side |
 | Replay format change | Parser isolated + fixture tests; header-only fallback; error surfaced in UI, app keeps working |
 | User has Match Replay disabled | Onboarding check: folder exists + recent files; show exact steps to enable |
-| Ubisoft API change / block / rate limit | Isolated client, shape guards, batching, caching, backoff; app degrades to replay-only |
+| Ubisoft API change / block / rate limit | Isolated client, shape guards, batching, caching, backoff; app degrades to replay-only. Login app ids are an ordered fallback list (UBI.loginAppIds); edge blocks (HTML 403) are detected and skipped |
 | 2FA accounts | Implemented 2FA flow; README suggests an alt account |
 | Credential safety | Electron safeStorage (DPAPI), only ever sent to ubiservices.ubi.com, never logged |
 | Exclusive-fullscreen capture fails | OCR is opt-in; suggest borderless; replay path still works from round 2 |
@@ -178,6 +178,7 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 | 2026-10-19 | 5 | check ✅ 35 tests. Simulated replay drops (real Y11S3 files copied into a watched dir): file → LiveState in **181–262 ms** (budget 300). Side prediction + match-end (incl. OT) tested |
 | 2026-10-19 | 6 | Windows OCR worker verified on this PC: boot 0.4 s, **24 ms/frame**, read CLUBHOUSE/DEFENSE/site correctly from a rendered frame. Matcher tests incl. OCR noise + no false positives. Real in-game frames untested (user check) |
 | 2026-10-19 | 4 | Screenshot review of every page found + fixed: misleading side tags, stale header side after match end, inflated pick rate in 3v3 (now exact team-rounds), baseline shown as win %, op chips overflowing, all-ops score penalty (now neutral 50 for no data) |
+| 2026-10-19 | 7.2 | User report: password login → 403. Probed live: Ubisoft edge bot-protection now blocks Basic-auth logins for app id 4391c956 (HTML 403); Ubisoft Connect PC id f68a4bb5 passes; ticket exchange/rm_v1/2FA/GETs unaffected. Fix: login via Connect PC id → exchange to ours, fallback order, clear "blocked" error. Real client vs live Ubisoft with a fake account → "Invalid credentials" (401) ✅. 47 tests |
 | 2026-10-19 | 7.1 | v0.1.1: Simulate last match (tested: phases loading→match→ended). v0.1.2: sign in via Ubisoft's official page (no password stored; Steam not offered by Ubisoft), session exchange + remember-me refresh + silent re-login + exchange-refused fallback (45 tests); real Electron self-test of both capture paths ✅ (`npm run selftest`); found + fixed ERR_FAILED when a login window opens right after another closes. Visible auto-update: 30-min checks, Settings panel, restart banner hidden during matches |
 | 2026-10-19 | 7 | NSIS + portable built locally; packaged exe passes smoke (node:sqlite, updater, tray in asar). Self-review found + fixed: first-run import blocking UI (now async), watcher never starting if MatchReplay created later. Pages enabled. CI/Release workflows written; GitHub Actions degraded today so runs queued |
 

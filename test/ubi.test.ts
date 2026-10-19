@@ -16,7 +16,7 @@ function mockFetch(handler: (c: Call) => { status?: number; body?: unknown }) {
     const c = { url: String(url), init }
     calls.push(c)
     const { status = 200, body = {} } = handler(c)
-    return new Response(status === 204 ? null : JSON.stringify(body), { status })
+    return new Response(status === 204 ? null : typeof body === "string" ? body : JSON.stringify(body), { status })
   }) as typeof fetch
   return { f, calls }
 }
@@ -45,18 +45,37 @@ const FULL = {
 }
 
 describe('ubi client', () => {
-  it('logs in, then gets an advanced session for full_profiles', async () => {
+  it('logs in via the Ubisoft Connect app id, exchanges to ours, then gets an advanced session', async () => {
+    const appOf = (c: Call) => (c.init?.headers as Record<string, string>)['Ubi-AppId']
     const m = mockFetch((c) => {
-      if (c.url.endsWith('/sessions')) return { body: session(auth(c).startsWith('Basic') ? 'base' : 'adv') }
+      if (c.url.endsWith('/sessions')) return { body: session(appOf(c) === UBI.advancedAppId ? 'adv' : appOf(c) === UBI.appId ? 'own' : 'login') }
       return { body: FULL }
     })
     const { c } = client(m.f)
     const cards = await c.fullProfiles([P1, P2])
     expect(cards.map((x) => [x.profileId, x.rank])).toEqual([[P1, 27], [P2, 36]])
-    expect(auth(m.calls[1]!)).toBe('Ubi_v1 t=base') // advanced session derived from base
-    expect(auth(m.calls[2]!)).toBe('Ubi_v1 t=adv')
+    expect(auth(m.calls[0]!)).toMatch(/^Basic /)
+    expect(appOf(m.calls[0]!)).toBe(UBI.loginAppIds[0])
+    expect(auth(m.calls[1]!)).toBe('Ubi_v1 t=login') // exchanged to our app id
+    expect(auth(m.calls[2]!)).toBe('Ubi_v1 t=own') // advanced session derived from ours
+    expect(auth(m.calls[3]!)).toBe('Ubi_v1 t=adv')
     await c.fullProfiles([P1])
-    expect(m.calls.filter((x) => x.url.endsWith('/sessions')).length).toBe(2) // sessions reused
+    expect(m.calls.filter((x) => x.url.endsWith('/sessions')).length).toBe(3) // sessions reused
+  })
+
+  it('skips an app id blocked by bot protection (HTML 403) and explains when all are blocked', async () => {
+    const appOf = (c: Call) => (c.init?.headers as Record<string, string>)['Ubi-AppId']
+    const html = { status: 403, body: '<html><p>Please enable JS</p></html>' }
+    const blockFirst = mockFetch((c) => (auth(c).startsWith('Basic') && appOf(c) === UBI.loginAppIds[0] ? html : { body: session('x') }))
+    expect(await client(blockFirst.f).c.login({ email: 'a', password: 'b' })).toBe('ok')
+    expect(appOf(blockFirst.calls[1]!)).toBe(UBI.loginAppIds[1])
+    const blockAll = mockFetch(() => html)
+    await expect(client(blockAll.f).c.login({ email: 'a', password: 'b' })).rejects.toMatchObject({ code: 'blocked', message: expect.stringMatching(/Sign in with Ubisoft/) })
+  })
+
+  it('reports wrong passwords with Ubisoft\'s message', async () => {
+    const m = mockFetch(() => ({ status: 401, body: { message: 'Invalid credentials', errorCode: 3 } }))
+    await expect(client(m.f).c.login({ email: 'a', password: 'b' })).rejects.toMatchObject({ code: 'auth', message: 'Invalid credentials' })
   })
 
   it('handles two-factor login', async () => {
