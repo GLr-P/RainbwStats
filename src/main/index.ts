@@ -14,7 +14,7 @@ import { UbiClient, UbiError } from './ubi/client'
 import { LobbyService } from './ubi/lobby'
 import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
-import { apiOps, currentSeason, mainsOf, metaRows, opStats, sitesFor, type Ctx } from './services'
+import { apiOps, currentSeason, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
 import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
 import { SEED_SITES } from '../shared/data/maps'
 import { rankedPool } from '../shared/data/sitePicks'
@@ -148,6 +148,7 @@ app.whenReady().then(async () => {
       } catch (e) { return authErr(e) }
     },
     apiOps: async (f) => apiOps(ctx, f, opsync.lastError),
+    mapGuide: async (mapKey, side) => mapGuide(ctx, mapKey, side),
     simPeople: async () => {
       let error: string | null = null
       let friends: { profileId: string; name: string }[] = []
@@ -263,7 +264,7 @@ app.whenReady().then(async () => {
         writeFileSync(join(shots, '0-waiting.png'), (await win!.webContents.capturePage()).toPNG())
         await engine.showLatest()
         await new Promise((r) => setTimeout(r, 1500)) // let a busy machine finish rendering the pushed state
-        for (const [i, label] of ['Live', 'Roster', 'Ops', 'Meta', 'Players', 'Settings'].entries()) {
+        for (const [i, label] of ['Live', 'Roster', 'Ops', 'Meta', 'Players', 'Settings', 'Maps'].entries()) {
           await js(`[...document.querySelectorAll('.nav button')].find(b => b.textContent.trim() === '${label}')?.click()`)
           await new Promise((r) => setTimeout(r, 700))
           writeFileSync(join(shots, `${i + 1}-${label.toLowerCase()}.png`), (await win!.webContents.capturePage()).toPNG())

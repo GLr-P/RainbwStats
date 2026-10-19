@@ -1,7 +1,7 @@
 // Query layer shared by IPC handlers and the live engine.
 import type { Db } from './db'
 import type { Dataset } from '../shared/data/dataset'
-import type { ApiOps, LivePlayer, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
+import type { ApiOps, GuideOp, LivePlayer, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
 import { baselineFor, recommend, ROLE_PRIOR, type AggMap } from '../shared/recommend'
 import { allOperators, operatorById, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import type { RoleTag } from '../shared/data/operators'
@@ -207,4 +207,36 @@ export function outsideRosterPick(ctx: Ctx, q: { mapKey: string; side: Side; sit
   if (!roster.length) return null
   const best = recsFor(ctx, { ...q, anyOperator: true, topN: 8 }).find((r) => !roster.includes(r.operatorId))
   return best && (!top || best.score >= top.score + 3) ? best : null
+}
+
+/** Everything the Maps tab shows for one map and side (researched data + your picks per site). */
+export function mapGuide(ctx: Ctx, mapKey: string, side: Side): MapGuide {
+  const m = meta()
+  const delta = m.ranked.winDelta[side]
+  const proRates = proBansFor(mapKey)
+  const me = ctx.me()
+  const mine = me ? ctx.db.apiOpAggs({ profileId: me, season: 'all' }) : new Map<string, { rounds: number; wins: number }>()
+  const cell = (key: string): GuideOp => {
+    const op = operatorByKey(key)
+    const you = mine.get(key)
+    return { key, name: op?.name ?? key, winDelta: delta[key] ?? null, proBan: proRates[key] ?? null, yourRounds: you?.rounds ?? 0, yourWinRate: you?.rounds ? you.wins / you.rounds : null }
+  }
+  // Sorted by win delta (official ranked), unknown deltas last, then by pro ban rate.
+  const byDelta = (a: GuideOp, b: GuideOp) => (b.winDelta ?? -1) - (a.winDelta ?? -1) || (b.proBan ?? 0) - (a.proBan ?? 0) || a.name.localeCompare(b.name)
+  const sites = sitesFor(ctx, mapKey).slice(0, 5).map(({ site }) => {
+    const t = siteTiersFor(mapKey, site, side)
+    return {
+      name: site, kind: siteKindFor(mapKey, site), source: (t?.source ?? 'none') as MapGuide['sites'][number]['source'], confidence: t?.confidence ?? 0,
+      S: (t?.S ?? []).filter((k) => operatorByKey(k)?.side === side).map(cell).sort(byDelta),
+      A: (t?.A ?? []).filter((k) => operatorByKey(k)?.side === side).map(cell).sort(byDelta),
+      picks: recsFor(ctx, { mapKey, side, site, topN: 3 })
+    }
+  })
+  const proBans = Object.entries(proRates).filter(([k]) => operatorByKey(k)?.side === side).map(([k]) => cell(k)).sort((a, b) => (b.proBan ?? 0) - (a.proBan ?? 0))
+  const ranked = allOperators(side).map((op) => ({ ...cell(op.key), banRate: m.ranked.bans[side][op.key] ?? null }))
+    .filter((r) => r.winDelta !== null || r.banRate !== null).sort(byDelta)
+  return {
+    mapKey, side, sites, strong: mapStrongFor(mapKey, side).map(cell).sort(byDelta), proBans, proGames: m.maps[mapKey]?.proBans.games ?? 0,
+    ranked, info: { version: m.version, patch: m.patch, rankedScope: m.ranked.scope, sources: m.sources, notes: m.notes }
+  }
 }

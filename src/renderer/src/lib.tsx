@@ -17,6 +17,26 @@ export function useLive(): LiveState | null {
 }
 
 /** Loads async data; re-runs when deps change. */
+type SortVal = number | string | null | undefined
+/** Click-to-sort table headers. Click again to flip direction; empty values always sort last. */
+export function useSort<T, K extends string>(def: K, val: (r: T, k: K) => SortVal) {
+  const [s, setS] = useState<{ k: K; asc: boolean }>({ k: def, asc: false })
+  const sort = (rows: T[]): T[] => rows.slice().sort((a, b) => {
+    const x = val(a, s.k), y = val(b, s.k)
+    if (x === null || x === undefined) return y === null || y === undefined ? 0 : 1
+    if (y === null || y === undefined) return -1
+    const c = typeof x === 'string' || typeof y === 'string' ? String(x).localeCompare(String(y)) : x - y
+    return s.asc ? c : -c
+  })
+  // `left` = text column: left-aligned and A→Z on first click.
+  const H = ({ k, children, left, title }: { k: K; children: React.ReactNode; left?: boolean; title?: string }) => (
+    <th className={`${left ? '' : 'r '}sort${s.k === k ? ' sorted' : ''}`} title={title} onClick={() => setS((p) => ({ k, asc: p.k === k ? !p.asc : !!left }))}>
+      {children}{s.k === k ? (s.asc ? ' ▴' : ' ▾') : ''}
+    </th>
+  )
+  return { sort, H }
+}
+
 export function useData<T>(fn: () => Promise<T>, deps: unknown[]): [T | undefined, () => void] {
   const [v, set] = useState<T>()
   const [n, bump] = useState(0)
@@ -100,6 +120,7 @@ export const opRoles = (id: string): string => (operatorById(id)?.roles ?? []).j
 export const Icon = {
   live: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M5 12a7 7 0 0 1 14 0M2 12a10 10 0 0 1 20 0" /></svg>,
   roster: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>,
+  maps: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14" /></svg>,
   ops: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>,
   meta: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" /></svg>,
   players: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="M21 21l-5-5" /></svg>,

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { allMaps } from '../../../shared/catalog'
 import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
-import { Bar, Seg, SideTag, pct, ratio, rs, useData } from '../lib'
+import { Bar, Seg, SideTag, pct, ratio, rs, useData, useSort } from '../lib'
 
 interface Filters { mapKey: string; site: string; side: Side | ''; season: string }
 
@@ -32,14 +32,31 @@ function FilterBar({ f, set, sideRequired }: { f: Filters; set: (f: Filters) => 
 
 type Source = 'replays' | 'ubisoft'
 
+/** Win-rate delta vs the side average, shrunk toward it (≈20 rounds) so tiny samples don't top lists. */
+export const winDelta = (wins: number, rounds: number, avg: number): number | null => (rounds ? (wins + avg * 20) / (rounds + 20) - avg : null)
+const sideAvgs = (rows: { side: Side; wins: number; rounds: number }[]): Record<Side, number> => {
+  const avg = (s: Side) => { const r = rows.filter((x) => x.side === s); const n = r.reduce((a, x) => a + x.rounds, 0); return n ? r.reduce((a, x) => a + x.wins, 0) / n : 0.5 }
+  return { attack: avg('attack'), defense: avg('defense') }
+}
+const DELTA_TIP = 'Win rate compared with the average on that side (small samples discounted). Default sort; click any header to sort by it.'
+function DeltaCell({ d }: { d: number | null }) {
+  return <td className={`r num ${d === null ? 'faint' : d >= 0 ? 'w' : 'l'}`}>{d === null ? '–' : `${d >= 0 ? '+' : '−'}${Math.abs(d * 100).toFixed(1)}%`}</td>
+}
+
 /** Ubisoft Career stats table: works without replays, covers every PC/game, no map/site detail. */
 function UbisoftOps({ who }: { who: 'me' | 'others' }) {
   const [season, setSeason] = useState('all')
   const [playlist, setPlaylist] = useState('')
   const [side, setSide] = useState<Side | ''>('')
   const [data] = useData(() => rs().apiOps({ who, season, playlist: playlist || undefined }), [who, season, playlist])
-  const rows = (data?.rows ?? []).filter((r) => !side || r.side === side)
+  const avgs = sideAvgs(data?.rows ?? [])
+  type Row = NonNullable<typeof data>['rows'][number]
+  const delta = (r: { side: Side; wins: number; rounds: number }) => winDelta(r.wins, r.rounds, avgs[r.side])
   const sideTotal = (s: Side) => (data?.rows ?? []).filter((r) => r.side === s).reduce((n, r) => n + r.rounds, 0)
+  const pickOf = (r: Row) => Math.min(1, (r.rounds * 5) / Math.max(1, sideTotal(r.side)))
+  const { sort, H } = useSort<Row, 'delta' | 'name' | 'side' | 'wr' | 'rounds' | 'pick' | 'players'>('delta', (r, k) =>
+    k === 'delta' ? delta(r) : k === 'name' ? r.name : k === 'side' ? r.side : k === 'wr' ? r.wins / r.rounds : k === 'rounds' ? r.rounds : k === 'pick' ? pickOf(r) : r.players)
+  const rows = sort((data?.rows ?? []).filter((r) => !side || r.side === side))
   return (
     <>
       <div className="panel row">
@@ -55,16 +72,17 @@ function UbisoftOps({ who }: { who: 'me' | 'others' }) {
       <div className="panel">
         {!rows.length ? <div className="empty">{who === 'me' ? 'No Ubisoft stats yet. Sign in under Settings and they sync automatically (all seasons).' : 'No players synced yet. Each match adds everyone in your lobby.'}</div> : (
           <table>
-            <thead><tr><th>Operator</th><th>Side</th><th className="r">Rounds</th>{who === 'others' && <th>Pick rate</th>}<th className="r">Win %</th>{who === 'others' && <th className="r">Players</th>}</tr></thead>
+            <thead><tr><H k="name" left>Operator</H><H k="side" left>Side</H><H k="delta" title={DELTA_TIP}>Δ win</H><H k="wr">Win %</H><H k="rounds">Rounds</H>{who === 'others' && <H k="pick" left>Pick rate</H>}{who === 'others' && <H k="players">Players</H>}</tr></thead>
             <tbody>
               {rows.map((r) => {
-                const pick = Math.min(1, (r.rounds * 5) / Math.max(1, sideTotal(r.side)))
+                const pick = pickOf(r)
                 return (
                   <tr key={r.opKey}>
                     <td style={{ fontWeight: 600 }}>{r.name}</td><td><SideTag side={r.side} /></td>
+                    <DeltaCell d={delta(r)} />
+                    <td className="r num">{pct(r.wins / r.rounds)}</td>
                     <td className="r num">{r.rounds}</td>
                     {who === 'others' && <td><Bar value={pick} /> <span className="num small">{pct(pick)}</span></td>}
-                    <td className="r num">{pct(r.wins / r.rounds)}</td>
                     {who === 'others' && <td className="r num">{r.players}</td>}
                   </tr>
                 )
@@ -77,17 +95,19 @@ function UbisoftOps({ who }: { who: 'me' | 'others' }) {
   )
 }
 
-type SortKey = 'rounds' | 'wr' | 'kd' | 'kpr' | 'hs'
+type SortKey = 'delta' | 'name' | 'side' | 'rounds' | 'wr' | 'kd' | 'kpr' | 'hs'
 
 export function OperatorsPage() {
   const [f, setF] = useState<Filters>({ mapKey: '', site: '', side: '', season: '' })
   const [mine, setMine] = useState(true)
-  const [sort, setSort] = useState<SortKey>('rounds')
   const [rows] = useData(() => rs().opStats({ mine, mapKey: f.mapKey || undefined, site: f.site || undefined, side: f.side || undefined, season: f.season || undefined }), [mine, f])
-  const val = (a: { rounds: number; wins: number; kills: number; deaths: number; headshots: number }, k: SortKey) =>
-    k === 'rounds' ? a.rounds : k === 'wr' ? a.wins / Math.max(1, a.rounds) : k === 'kd' ? a.kills / Math.max(1, a.deaths) : k === 'kpr' ? a.kills / Math.max(1, a.rounds) : a.headshots / Math.max(1, a.kills)
-  const sorted = (rows ?? []).slice().sort((a, b) => val(b.agg, sort) - val(a.agg, sort))
-  const H = ({ k, children }: { k: SortKey; children: string }) => <th className={`r sort${sort === k ? ' sorted' : ''}`} onClick={() => setSort(k)}>{children}</th>
+  const avgs = sideAvgs((rows ?? []).map((r) => ({ side: r.side, wins: r.agg.wins, rounds: r.agg.rounds })))
+  const deltaOf = (r: { side: Side; agg: { wins: number; rounds: number } }) => winDelta(r.agg.wins, r.agg.rounds, avgs[r.side])
+  const { sort, H } = useSort<NonNullable<typeof rows>[number], SortKey>('delta', (r, k) => {
+    const a = r.agg
+    return k === 'delta' ? deltaOf(r) : k === 'name' ? r.name : k === 'side' ? r.side : k === 'rounds' ? a.rounds : k === 'wr' ? a.wins / Math.max(1, a.rounds) : k === 'kd' ? a.kills / Math.max(1, a.deaths) : k === 'kpr' ? a.kills / Math.max(1, a.rounds) : a.kills ? a.headshots / a.kills : null
+  })
+  const sorted = sort(rows ?? [])
   const [source, setSource] = useState<Source>('ubisoft')
   return (
     <>
@@ -101,14 +121,15 @@ export function OperatorsPage() {
       <div className="panel">
         {!sorted.length ? <div className="empty">No rounds match these filters yet. Play with Match Replay enabled and they'll appear here.</div> : (
           <table>
-            <thead><tr><th>Operator</th><th>Side</th><H k="rounds">Rounds</H><H k="wr">Win %</H><H k="kd">K/D</H><H k="kpr">Kills/rd</H><H k="hs">HS %</H></tr></thead>
+            <thead><tr><H k="name" left>Operator</H><H k="side" left>Side</H><H k="delta" title={DELTA_TIP}>Δ win</H><H k="wr">Win %</H><H k="rounds">Rounds</H><H k="kd">K/D</H><H k="kpr">Kills/rd</H><H k="hs">HS %</H></tr></thead>
             <tbody>
               {sorted.map(({ operatorId, name, side, agg }) => (
                 <tr key={operatorId}>
                   <td style={{ fontWeight: 600 }}>{name}</td>
                   <td><SideTag side={side} /></td>
-                  <td className="r num">{agg.rounds}</td>
+                  <DeltaCell d={deltaOf({ side, agg })} />
                   <td className="r num">{pct(agg.wins / agg.rounds)}</td>
+                  <td className="r num">{agg.rounds}</td>
                   <td className="r num">{ratio(agg.kills, agg.deaths)}</td>
                   <td className="r num">{(agg.kills / agg.rounds).toFixed(2)}</td>
                   <td className="r num">{agg.kills ? pct(agg.headshots / agg.kills) : '–'}</td>
@@ -146,6 +167,13 @@ function ReplayMeta() {
   const [rows] = useData(() => rs().meta({ mapKey: f.mapKey || undefined, site: f.site || undefined, side: (f.side || 'attack') as Side, season: f.season || undefined }), [f])
   const measured = rows?.filter((r) => r.source === 'replays') ?? []
   const total = measured.reduce((n, r) => n + r.rounds, 0)
+  const avg = total ? measured.reduce((n, r) => n + r.winRate * r.rounds, 0) / total : 0.5
+  type Row = NonNullable<typeof rows>[number]
+  const deltaOf = (r: Row) => (r.source === 'replays' ? winDelta(r.winRate * r.rounds, r.rounds, avg) : null)
+  const measuredOnly = (r: Row, v: number) => (r.source === 'replays' ? v : null)
+  const { sort, H } = useSort<Row, 'delta' | 'name' | 'rounds' | 'pick' | 'wr' | 'source'>('delta', (r, k) =>
+    k === 'delta' ? deltaOf(r) : k === 'name' ? r.name : k === 'rounds' ? measuredOnly(r, r.rounds) : k === 'pick' ? measuredOnly(r, r.pickRate) : k === 'wr' ? measuredOnly(r, r.winRate) : r.source === 'replays' ? 1 + r.rounds : r.winRate)
+  const sorted = sort(rows ?? [])
   return (
     <>
       <div className="panel">
@@ -159,11 +187,12 @@ function ReplayMeta() {
       <FilterBar f={f} set={setF} sideRequired />
       <div className="panel">
         <table>
-          <thead><tr><th>Operator</th><th className="r">Rounds</th><th>Pick rate</th><th className="r">Win %</th><th>Source</th></tr></thead>
+          <thead><tr><H k="name" left>Operator</H><H k="delta" title={DELTA_TIP}>Δ win</H><H k="rounds">Rounds</H><H k="pick" left>Pick rate</H><H k="wr">Win %</H><H k="source" left>Source</H></tr></thead>
           <tbody>
-            {rows?.map((r) => (
+            {sorted.map((r) => (
               <tr key={r.operatorId}>
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
+                <DeltaCell d={deltaOf(r)} />
                 <td className="r num">{r.rounds || '–'}</td>
                 <td>{r.source === 'replays' ? <><Bar value={r.pickRate} /> <span className="num small">{pct(r.pickRate)}</span></> : <span className="faint">–</span>}</td>
                 <td className="r num">{r.source === 'replays' ? pct(r.winRate) : <span className="faint">–</span>}</td>

@@ -13,10 +13,12 @@ import { RosterPage } from './pages/Roster'
 import { MetaPage, OperatorsPage } from './pages/Stats'
 import { PlayersPage } from './pages/Players'
 import { SettingsPage } from './pages/Settings'
+import { MapsPage } from './pages/Maps'
 
 const PAGES = [
   { id: 'live', label: 'Live', icon: Icon.live },
   { id: 'roster', label: 'Roster', icon: Icon.roster },
+  { id: 'maps', label: 'Maps', icon: Icon.maps },
   { id: 'ops', label: 'Ops', icon: Icon.ops },
   { id: 'meta', label: 'Meta', icon: Icon.meta },
   { id: 'players', label: 'Players', icon: Icon.players },
@@ -66,6 +68,7 @@ function App() {
         )}
         {!settings || !catalogReady ? null : page === 'live' ? <LivePage live={live} settings={settings} status={status} />
           : page === 'roster' ? <RosterPage settings={settings} update={update} />
+          : page === 'maps' ? <MapsPage />
           : page === 'ops' ? <OperatorsPage />
           : page === 'meta' ? <MetaPage />
           : page === 'players' ? <PlayersPage />

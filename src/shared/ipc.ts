@@ -128,6 +128,19 @@ export interface ApiOps { rows: ApiOpRow[]; players: number; seasons: string[]; 
 export interface SimPerson { profileId: string; name: string; source: 'friend' | 'recent' }
 export interface SimRequest { mapKey: string; side: Side; myTeam: string[]; enemyTeam: string[] } // names or profile ids
 
+/** One operator in the Maps tab, with the signals used to sort/explain it. */
+export interface GuideOp { key: string; name: string; winDelta: number | null; proBan: number | null; yourRounds: number; yourWinRate: number | null }
+export interface MapGuide {
+  mapKey: string
+  side: Side
+  sites: { name: string; kind: 'basement' | 'ground' | 'upper'; source: 'research' | 'curated' | 'none'; confidence: number; S: GuideOp[]; A: GuideOp[]; picks: Recommendation[] }[]
+  strong: GuideOp[]
+  proBans: GuideOp[]
+  proGames: number
+  ranked: (GuideOp & { banRate: number | null })[]
+  info: { version: string; patch: string; rankedScope: string; sources: { name: string; detail: string; url: string }[]; notes: string[] }
+}
+
 export interface AuthResult { ok: boolean; twoFactor?: boolean; error?: string }
 
 export interface UpdateStatus {
@@ -171,6 +184,8 @@ export interface RsApi {
   /** Empty teams = auto-pick random players (friends + met), preferring ranked-this-season. mapKey 'random' allowed. */
   simulateMatch(r: SimRequest): Promise<{ ok: boolean; error?: string; unresolved?: string[]; ranked?: number }>
   stopSimulation(): Promise<void>
+  /** Researched meta for one map and side (Maps tab). */
+  mapGuide(mapKey: string, side: Side): Promise<MapGuide>
   updateStatus(): Promise<UpdateStatus>
   checkForUpdates(): Promise<UpdateStatus>
   installUpdate(): Promise<void>
@@ -180,5 +195,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate'>[]
