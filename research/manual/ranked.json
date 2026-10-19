@@ -1,0 +1,13 @@
+{
+  "source": "https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/280F3jL91f371i6YbH3mew/designers-notes-y11s3-midseason-update",
+  "scope": "Ranked, PC, Platinum & above, Y11S3.1 (published 2026-10-15)",
+  "note": "Ban rates are read from labelled bar charts (exact). Win deltas are read from scatter plots (±0.2%); only operators whose icons were identified with certainty are included.",
+  "bans": {
+    "attack": { "solidsnake": 0.58, "ace": 0.44, "ram": 0.22, "thermite": 0.16, "dokkaebi": 0.12, "thatcher": 0.09, "maverick": 0.06, "fuze": 0.03, "montagne": 0.03, "kali": 0.03 },
+    "defense": { "mira": 0.89, "kaid": 0.50, "azami": 0.18, "bandit": 0.09, "thorn": 0.07, "mute": 0.06, "valkyrie": 0.04, "clash": 0.02, "goyo": 0.02, "fenrir": 0.01 }
+  },
+  "winDelta": {
+    "attack": { "ace": 0.013, "thermite": 0.009, "thatcher": 0.009, "kali": 0.009, "solidsnake": 0.004, "dokkaebi": 0.003, "grim": -0.007, "fuze": -0.02 },
+    "defense": { "rook": 0.032, "thorn": 0.016, "maestro": 0.012, "valkyrie": 0.009, "fenrir": 0.006, "bandit": -0.001, "mute": -0.006, "azami": -0.007, "mira": -0.012, "kaid": -0.016 }
+  }
+}

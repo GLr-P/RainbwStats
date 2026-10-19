@@ -7,3 +7,6 @@ release/
 # Raw replays contain other players' names: never commit them.
 *.rec
 test/fixtures/local/
+
+# Research crawl cache (third-party pages; only derived data is committed)
+research/cache/

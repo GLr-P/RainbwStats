@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AppStatus, LivePlayer, LiveState, Recommendation, Settings } from '../../../shared/ipc'
 import { allMaps, mapName } from '../../../shared/catalog'
+import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
 import { OpChip, RankBadge, Meter, SideTag, Seg, pct, ratio, rs, useData } from '../lib'
 
@@ -200,7 +201,7 @@ function PreviewPicker({ onPreview, active }: { onPreview: (s: LiveState | null)
       <h2 style={{ margin: 0 }}>Preview</h2>
       <select value={map} onChange={(e) => { setMap(e.target.value); setSite(''); void run(e.target.value, side, '') }} aria-label="Map">
         <option value="">Pick a map…</option>
-        {allMaps().map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
+        {pickerMaps(allMaps()).map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
       </select>
       <Seg value={side} options={[{ v: 'attack', label: 'Attack' }, { v: 'defense', label: 'Defense' }]} onChange={(v) => { setSide(v); void run(map, v, site) }} />
       <select value={site} onChange={(e) => { setSite(e.target.value); void run(map, side, e.target.value) }} aria-label="Site" disabled={!sites?.length}>
@@ -231,7 +232,7 @@ function Simulator({ hasReplay }: { hasReplay: boolean }) {
       <div className="row">
         <select value={map} onChange={(e) => setMap(e.target.value)} aria-label="Map">
           <option value="random">Random map</option>
-          {allMaps().map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
+          {pickerMaps(allMaps()).map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
         </select>
         <Seg value={side} options={[{ v: 'attack', label: 'Start on attack' }, { v: 'defense', label: 'Start on defense' }]} onChange={setSide} />
         <button className="btn primary" onClick={() => void start()} disabled={busy}>{busy ? 'Starting…' : 'Start simulation'}</button>

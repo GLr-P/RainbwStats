@@ -1,6 +1,7 @@
 // Operators (your stats) and Meta (everyone in your replays) pages share the filter bar.
 import { useState } from 'react'
 import { allMaps } from '../../../shared/catalog'
+import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
 import { Bar, Seg, SideTag, pct, ratio, rs, useData } from '../lib'
 
@@ -18,7 +19,7 @@ function FilterBar({ f, set, sideRequired }: { f: Filters; set: (f: Filters) => 
       </select>
       <select value={f.mapKey} onChange={(e) => set({ ...f, mapKey: e.target.value, site: '' })} aria-label="Map">
         <option value="">All maps</option>
-        {allMaps().map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
+        {pickerMaps(allMaps()).map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
       </select>
       <select value={f.site} onChange={(e) => set({ ...f, site: e.target.value })} disabled={!sites?.length} aria-label="Site">
         <option value="">All sites</option>

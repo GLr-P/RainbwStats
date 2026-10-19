@@ -3,7 +3,11 @@
 // exists. It is shown as "baseline" in the UI. Never present it as measured data.
 import type { CatalogOverrides } from '../catalog'
 
+import type { MetaData } from './meta'
+
 export interface Dataset extends CatalogOverrides {
+  /** Researched meta (site tiers, ranked deltas, pro bans); newer than the bundled one wins. */
+  meta?: MetaData
   version: string
   season: string
   baseline: Record<string, number> // operator key → 0..1
@@ -12,7 +16,7 @@ export interface Dataset extends CatalogOverrides {
 }
 
 export const BUNDLED_DATASET: Dataset = {
-  version: '2026.10.19-1',
+  version: '2026.10.20-1',
   season: 'Y11S3',
   baseline: {
     // attack

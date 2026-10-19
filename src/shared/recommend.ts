@@ -41,9 +41,13 @@ export interface RecInput {
   minRounds: number
   topN: number
   /** Curated tiers (operator ids): S/A for the site when given, and generally strong on the map. */
-  specialists?: { S?: string[]; A?: string[]; map?: string[]; B?: string[]; kind?: string; /** per-site tiers, used when the site is not known yet */ mix?: { S: string[]; A: string[]; B: string[] }[] }
+  specialists?: { S?: string[]; A?: string[]; map?: string[]; B?: string[]; kind?: string; /** per-site tiers, used when the site is not known yet */ mix?: { S: string[]; A: string[]; B: string[] }[]; /** how much evidence backs the site tiers (0–1) */ confidence?: number }
   /** Probability (0..1) that teammates already cover a role this round; missing = unknown. */
   teamCover?: Partial<Record<RoleTag, number>>
+  /** Official ranked win delta per operator (Ubisoft, Platinum+, aggregated per bomb site). */
+  rankedDelta?: Map<string, number>
+  /** Share of pro games on this map where the operator was banned. */
+  proBans?: Map<string, number>
 }
 
 /** The role a team really needs one of, per side. */
@@ -118,7 +122,8 @@ export function recommend(inp: RecInput): Recommendation[] {
     const isEssential = op.roles.includes(essential)
     const tier: Recommendation['tier'] = inp.specialists?.S?.includes(op.id) ? 'S' : inp.specialists?.A?.includes(op.id) ? 'A'
       : inp.specialists?.B?.includes(op.id) ? 'B' : inp.specialists?.map?.includes(op.id) ? 'map' : null
-    let siteDelta = tier === 'S' ? SITE_S : tier === 'A' ? SITE_A : tier === 'B' ? SITE_B : tier === 'map' ? (hasSiteTiers ? SITE_MAP * 0.5 : SITE_MAP * 2) : hasSiteTiers || hasMapTiers ? SITE_OFF : 0
+    const conf = inp.specialists?.confidence ?? 1
+    let siteDelta = tier === 'S' ? SITE_S * conf : tier === 'A' ? SITE_A * conf : tier === 'B' ? SITE_B : tier === 'map' ? (hasSiteTiers ? SITE_MAP * 0.5 : SITE_MAP * 2) : hasSiteTiers || hasMapTiers ? SITE_OFF : 0
     if (isEssential && siteDelta > 0) siteDelta *= 0.35 + 0.65 * essentialNeed
     // Site not known yet: expected site fit over the map's sites (strong on 2 of 4 → about half).
     const mix = inp.specialists?.mix
@@ -131,7 +136,7 @@ export function recommend(inp: RecInput): Recommendation[] {
       mixReason = strong ? `Strong on ${strong} of ${per.length} sites` : per.some((v) => v > 0) ? 'Fits some sites here' : 'Not a pick on this map'
     }
     if (siteDelta !== 0) {
-      const reason = tier === 'S' ? 'Site specialist (S)' : tier === 'A' ? 'Strong on this site (A)' : tier === 'B' ? `Fits ${inp.specialists?.kind ?? 'this'} sites` : tier === 'map' ? 'Good on this map' : 'Not a pick for this site'
+      const reason = tier === 'S' ? 'Site specialist (S)' : tier === 'A' ? 'Strong on this site (A)' : tier === 'B' ? `Fits ${inp.specialists?.kind ?? 'this'} sites` : tier === 'map' ? ((inp.proBans?.get(op.id) ?? 0) >= 0.25 ? `Pro must-ban on this map (${pct(inp.proBans!.get(op.id)!)} of games)` : 'Good on this map') : 'Not a pick for this site'
       parts.push({ key: 'site', value: siteDelta, reason: mixReason ?? reason })
     }
 
@@ -150,11 +155,20 @@ export function recommend(inp: RecInput): Recommendation[] {
 
     // Meta: replay crowd (map/site detail) → season crowd (players you met) → tempered baseline.
     const c = get(crowdScope, op.id), sc = get(inp.crowdSeason, op.id)
-    const wC = c.rounds / (c.rounds + 60), wS = sc.rounds / (sc.rounds + 200)
-    const baseDelta = ((inp.baseline.get(op.id) ?? 0.55) - 0.55) * 0.06
-    const metaDelta = 0.6 * (wC * (shrink(c.wins, c.rounds, 0.5, 60) - 0.5) + (1 - wC) * (wS * (shrink(sc.wins, sc.rounds, 0.5, 200) - 0.5) + (1 - wS) * baseDelta))
+    const wC = c.rounds / (c.rounds + 60)
+    // Players-you-met data only counts fully once it spans ~30 players (a few heavy mains skew it).
+    const playersFactor = Math.min(1, (inp.crowdSeasonPlayers ?? 0) / 30)
+    const wS = playersFactor * (sc.rounds / (sc.rounds + 200))
+    // Official ranked win delta when measured, else a tempered curated baseline.
+    const official = inp.rankedDelta?.get(op.id)
+    const baseDelta = official ?? ((inp.baseline.get(op.id) ?? 0.55) - 0.55) * 0.06
+    // Crowd/season win rates include player-skill selection, so they are tempered (×0.6); the official
+    // ranked delta is already a per-site win delta and is used as measured.
+    const fallback = official ?? 0.6 * baseDelta
+    const metaDelta = wC * 0.6 * (shrink(c.wins, c.rounds, 0.5, 60) - 0.5) + (1 - wC) * (wS * 0.6 * (shrink(sc.wins, sc.rounds, 0.5, 200) - 0.5) + (1 - wS) * fallback)
     const metaReason = c.rounds >= 10 ? `Meta here: ${pct(c.wins / c.rounds)} WR (${c.rounds} rds)`
-      : sc.rounds >= 20 ? `Season meta: ${pct(sc.wins / sc.rounds)} WR · in ${pct(Math.min(1, (sc.rounds * 5) / Math.max(1, seasonTotal)))} of rounds (${inp.crowdSeasonPlayers ?? 0} players)`
+      : sc.rounds >= 20 && playersFactor >= 0.5 ? `Season meta: ${pct(sc.wins / sc.rounds)} WR · in ${pct(Math.min(1, (sc.rounds * 5) / Math.max(1, seasonTotal)))} of rounds (${inp.crowdSeasonPlayers ?? 0} players)`
+      : official !== undefined ? 'Ranked meta (official, Plat+)'
       : 'Baseline strength'
     if (Math.abs(metaDelta) >= 0.002) parts.push({ key: 'meta', value: metaDelta, reason: metaReason })
 

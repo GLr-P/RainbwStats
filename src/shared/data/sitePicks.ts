@@ -168,3 +168,53 @@ export function sitePicksFor(mapKey: string, site: string): { attack: TierPicks;
   }
   return best?.picks
 }
+
+// ---- Researched data first (scripts/research → meta.json), curated tiers above as fallback ----
+import { meta, type MetaSite } from './meta'
+import { SEED_SITES } from './maps'
+
+/** Researched site entry matching a (replay or seed) site name. */
+function metaSite(mapKey: string, site: string): MetaSite | undefined {
+  const sites = meta().maps[mapKey]?.sites ?? []
+  const want = rooms(site)
+  let best: { s: MetaSite; overlap: number } | undefined
+  for (const s of sites) {
+    const overlap = rooms(s.name).filter((r) => want.includes(r)).length
+    if (overlap > (best?.overlap ?? 0)) best = { s, overlap }
+  }
+  return best?.s
+}
+
+/** S/A tiers for a site and side: researched lineups when there are ≥2, else curated judgment. */
+export function siteTiersFor(mapKey: string, site: string, side: 'attack' | 'defense'): (TierPicks & { source: 'research' | 'curated'; confidence: number }) | undefined {
+  const m = metaSite(mapKey, site)
+  // Confidence: 5+ lineups count fully, 2 lineups ~70%; curated judgment counts 70%.
+  if (m && m.evidence[side] >= 2 && (m[side].S.length || m[side].A.length)) return { ...m[side], source: 'research', confidence: Math.min(1, 0.5 + m.evidence[side] / 10) }
+  const c = sitePicksFor(mapKey, site)?.[side]
+  return c ? { ...c, source: 'curated', confidence: 0.7 } : undefined
+}
+
+/** Operators strong on a map (pro must-bans + common in lineups), else the curated map list. */
+export function mapStrongFor(mapKey: string, side: 'attack' | 'defense'): string[] {
+  const researched = meta().maps[mapKey]?.strong[side] ?? []
+  return researched.length ? researched : SITE_PICKS[mapKey]?.map[side] ?? []
+}
+
+/** Pro ban rate per operator key on a map (share of pro games). */
+export const proBansFor = (mapKey: string): Record<string, number> => meta().maps[mapKey]?.proBans.rates ?? {}
+
+export const siteKindFor = (mapKey: string, site: string): SiteKind => metaSite(mapKey, site)?.kind ?? siteKind(site)
+
+/** Default site list for a map (researched names, else seeds). */
+export function seedSitesFor(mapKey: string): string[] {
+  const researched = meta().maps[mapKey]?.sites.map((s) => s.name) ?? []
+  // Seed sites whose rooms the research did not cover (e.g. maps with few lineups).
+  const extra = (SEED_SITES[mapKey] ?? []).filter((seed) => !researched.some((r) => rooms(r).some((x) => rooms(seed).includes(x))))
+  return [...researched, ...extra]
+}
+
+/** Current ranked map pool (from researched data). Empty = unknown. */
+export const rankedPool = (): string[] => meta().rankedPool
+
+/** Maps to offer in pickers: the ranked pool when known, else every map. */
+export const pickerMaps = <T extends { key: string }>(all: T[]): T[] => { const pool = rankedPool(); return pool.length ? all.filter((m) => pool.includes(m.key)) : all }

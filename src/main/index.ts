@@ -17,6 +17,7 @@ import { buildLive } from './live/state'
 import { apiOps, currentSeason, mainsOf, metaRows, opStats, sitesFor, type Ctx } from './services'
 import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
 import { SEED_SITES } from '../shared/data/maps'
+import { rankedPool } from '../shared/data/sitePicks'
 import { baselineFor } from '../shared/recommend'
 import { applyLearned } from './replay/ingest'
 import { findGameDirs, replayRootOf } from './replay/locate'
@@ -181,7 +182,7 @@ app.whenReady().then(async () => {
       let activeCount: number | undefined
       let activeIds = new Set<string>()
       const cards0 = (id: string) => activeIds.has(id)
-      if (req.mapKey === 'random') { const keys = Object.keys(SEED_SITES); req = { ...req, mapKey: keys[Math.floor(Math.random() * keys.length)]! } }
+      if (req.mapKey === 'random') { const keys = rankedPool().length ? rankedPool() : Object.keys(SEED_SITES); req = { ...req, mapKey: keys[Math.floor(Math.random() * keys.length)]! } }
       if (!req.myTeam.some((s) => s.trim()) && !req.enemyTeam.some((s) => s.trim())) {
         // Auto: random players from friends + people you've met, preferring ones ranked this season
         // with games played. Ranks come from one batched lookup (cached), friends go on your team first.
@@ -278,7 +279,7 @@ app.whenReady().then(async () => {
         const lobbyPlayers = [...engine.state.myTeam, ...engine.state.enemyTeam]
         console.log('SIMSTATE', engine.state.source, engine.state.phase, engine.state.rounds.length, engine.state.mapKey,
           `players=${lobbyPlayers.length} ranked=${lobbyPlayers.filter((x) => x.card?.ranked).length} withMains=${lobbyPlayers.filter((x) => x.mains.length).length}`,
-          `side=${engine.state.side} picks=${engine.state.recommendations.map((r) => r.name).join('/')} other=${engine.state.otherSide?.recs.map((r) => r.name).join('/')}`)
+          `side=${engine.state.side} picks=${engine.state.recommendations.map((r) => r.name).join('/')} other=${engine.state.otherSide?.recs.map((r) => r.name).join('/')}`, `lobbyError=${engine.state.lobbyError}`)
         await js('window.rs.stopSimulation()')
       }
       clearTimeout(fail)

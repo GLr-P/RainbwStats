@@ -1,0 +1,17 @@
+{
+  "season": "Y11S3",
+  "patch": "Y11S3.2",
+  "name": "Operation Split Fire (mid-season)",
+  "date": "2026-10-15",
+  "rankedPool": ["border", "bank", "chalet", "clubhouse", "villa", "fortress", "kafe", "lair", "nighthaven", "oregon", "coastline", "consulate", "kanal", "outback", "casino"],
+  "proPool": ["border", "bank", "chalet", "clubhouse", "villa", "fortress", "kafe", "lair", "nighthaven"],
+  "notes": [
+    "Y11S3: Noor added (defender). Villa Living Room/Library site moved to basement. Dokkaebi rework (Breach Charges, interruptible Jegeo). SMG-12 damage 28→16.",
+    "Y11S3.1 (2026-09-23): Thermite charge 220 dmg, Castle panels +1 melee, Sledge faster swing, Buck more Skeleton Key ammo, Fenrir faster gas, Maestro battery up.",
+    "Y11S3.2 (2026-10-15): Noor Horus Lance buffs, Tachanka Shumikha impact mode, Solid Snake radar charges 4→3, Capitão fire spread faster, Clash slow 5→10%, Osa placement, Barbed Wire stops Ram BU-GI, fire damage 12→14, Valkyrie Glaive-12."
+  ],
+  "sources": [
+    "https://news.ubisoft.com/en-us/article/1yzD1EJhuk6vXsTt8eP1hf/rainbow-six-siege-operation-split-fire-midseason-update-legend-division-arrives-noor-buffs-and-a-final-ranked-map-rotation",
+    "https://siegestrats.com/season"
+  ]
+}

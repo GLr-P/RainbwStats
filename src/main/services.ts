@@ -5,8 +5,8 @@ import type { ApiOps, LivePlayer, MetaRow, OpStatRow, Recommendation, Settings }
 import { baselineFor, recommend, ROLE_PRIOR, type AggMap } from '../shared/recommend'
 import { allOperators, operatorById, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import type { RoleTag } from '../shared/data/operators'
-import { SEED_SITES } from '../shared/data/maps'
-import { KIND_FIT, SITE_PICKS, siteKind, sitePicksFor } from '../shared/data/sitePicks'
+import { KIND_FIT, mapStrongFor, proBansFor, seedSitesFor, siteKindFor, siteTiersFor } from '../shared/data/sitePicks'
+import { meta } from '../shared/data/meta'
 import type { Side } from '../shared/types'
 
 export interface Ctx {
@@ -132,12 +132,21 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
   if (me) for (const [id, a] of apiAggMap(ctx, q.side, { profileId: me, season }).map) recent.set(id, (recent.get(id) ?? 0) + a.rounds * 0.3)
   // Curated tiers for this map (and site): operator keys → ids for this side.
   const ids = (keys?: string[]) => (keys ?? []).map((k) => operatorByKey(k)).filter((o) => o?.side === q.side).map((o) => o!.id)
-  const siteTiers = q.mapKey && q.site ? sitePicksFor(q.mapKey, q.site)?.[q.side] : undefined
-  const kind = q.site ? siteKind(q.site) : undefined
-  const mix = q.mapKey && !q.site ? sitesFor(ctx, q.mapKey).slice(0, 5).map(({ site }) => ({ S: ids(sitePicksFor(q.mapKey!, site)?.[q.side].S), A: ids(sitePicksFor(q.mapKey!, site)?.[q.side].A), B: ids(KIND_FIT[q.side][siteKind(site)]) })) : undefined
-  const specialists = q.mapKey ? { map: ids(SITE_PICKS[q.mapKey]?.map[q.side]), S: ids(siteTiers?.S), A: ids(siteTiers?.A), B: kind ? ids(KIND_FIT[q.side][kind]) : undefined, kind: kind === 'upper' ? 'upper-floor' : kind === 'ground' ? 'ground-floor' : kind, mix } : undefined
+  const siteTiers = q.mapKey && q.site ? siteTiersFor(q.mapKey, q.site, q.side) : undefined
+  const kind = q.mapKey && q.site ? siteKindFor(q.mapKey, q.site) : undefined
+  const mix = q.mapKey && !q.site ? sitesFor(ctx, q.mapKey).slice(0, 5).map(({ site }) => {
+    const t = siteTiersFor(q.mapKey!, site, q.side)
+    return { S: ids(t?.S), A: ids(t?.A), B: ids(KIND_FIT[q.side][siteKindFor(q.mapKey!, site)]) }
+  }) : undefined
+  const kindLabel = kind === 'upper' ? 'upper-floor' : kind === 'ground' ? 'ground-floor' : kind
+  const specialists = q.mapKey ? { map: ids(mapStrongFor(q.mapKey, q.side)), S: ids(siteTiers?.S), A: ids(siteTiers?.A), B: kind ? ids(KIND_FIT[q.side][kind]) : undefined, kind: kindLabel, mix, confidence: siteTiers?.confidence } : undefined
+  // Official ranked win delta (Platinum+, per-site aggregated) and pro ban rates on this map.
+  const byId = (o: Record<string, number> | undefined) => new Map<string, number>(
+    Object.entries(o ?? {}).flatMap(([k, v]): [string, number][] => { const id = operatorByKey(k)?.id; return id ? [[id, v]] : [] }))
+  const rankedDelta = byId(meta().ranked.winDelta[q.side])
+  const proBans = q.mapKey ? byId(proBansFor(q.mapKey)) : new Map<string, number>()
   return recommend({
-    specialists,
+    specialists, rankedDelta, proBans,
     teamCover: teamCoverFor(ctx, q.side, q.teammates ?? []),
     crowdSeason: crowdSeason.map, crowdSeasonPlayers: crowdSeason.players,
     side: q.side, mapKey: q.mapKey, site: q.site, roster: q.anyOperator ? [] : effectiveRoster(ctx, q.side), banned: q.banned,
@@ -162,7 +171,10 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
 /** Sites for a map: learned from replays, else the approximate seed list. */
 export function sitesFor(ctx: Ctx, mapKey: string): { site: string; rounds: number }[] {
   const learned = ctx.db.sites(mapKey)
-  return learned.length ? learned : (SEED_SITES[mapKey] ?? []).map((site) => ({ site, rounds: 0 }))
+  // Replay-learned names first, then researched/seed sites not already covered (by room names).
+  const roomsOf = (x: string) => x.split(',').map((h) => h.trim().replace(/^(\d+F|B\d?)\s+/i, '').toLowerCase())
+  const seeds = seedSitesFor(mapKey).filter((seed) => !learned.some((l) => roomsOf(l.site).some((r) => roomsOf(seed).includes(r))))
+  return [...learned, ...seeds.map((site) => ({ site, rounds: 0 }))]
 }
 
 export function siteRecsFor(ctx: Ctx, mapKey: string, side: Side, perSite = 3, teammates: Teammate[] = []): { site: string; recs: Recommendation[] }[] {

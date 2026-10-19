@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { BUNDLED_DATASET, type Dataset } from '../shared/data/dataset'
 import { applyCatalogOverrides } from '../shared/catalog'
 import { RANK_NAMES } from '../shared/ranks'
+import { setMeta } from '../shared/data/meta'
 
 export function isDataset(v: unknown): v is Dataset {
   if (typeof v !== 'object' || v === null) return false
@@ -27,6 +28,7 @@ export class DatasetStore {
 
   private apply(): void {
     applyCatalogOverrides(this.current)
+    setMeta(this.current.meta)
     if (this.current.rankNames?.length) RANK_NAMES.splice(0, RANK_NAMES.length, ...this.current.rankNames)
   }
 

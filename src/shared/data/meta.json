@@ -1,0 +1,2139 @@
+{
+ "version": "2026.10.15-Y11S3.2",
+ "season": "Y11S3",
+ "patch": "Y11S3.2",
+ "generatedAt": "2026-10-19T21:03:39.459Z",
+ "rankedPool": [
+  "border",
+  "bank",
+  "chalet",
+  "clubhouse",
+  "villa",
+  "fortress",
+  "kafe",
+  "lair",
+  "nighthaven",
+  "oregon",
+  "coastline",
+  "consulate",
+  "kanal",
+  "outback",
+  "casino"
+ ],
+ "notes": [
+  "Y11S3: Noor added (defender). Villa Living Room/Library site moved to basement. Dokkaebi rework (Breach Charges, interruptible Jegeo). SMG-12 damage 28→16.",
+  "Y11S3.1 (2026-09-23): Thermite charge 220 dmg, Castle panels +1 melee, Sledge faster swing, Buck more Skeleton Key ammo, Fenrir faster gas, Maestro battery up.",
+  "Y11S3.2 (2026-10-15): Noor Horus Lance buffs, Tachanka Shumikha impact mode, Solid Snake radar charges 4→3, Capitão fire spread faster, Clash slow 5→10%, Osa placement, Barbed Wire stops Ram BU-GI, fire damage 12→14, Valkyrie Glaive-12."
+ ],
+ "ranked": {
+  "scope": "Ranked, PC, Platinum & above, Y11S3.1 (published 2026-10-15)",
+  "bans": {
+   "attack": {
+    "solidsnake": 0.58,
+    "ace": 0.44,
+    "ram": 0.22,
+    "thermite": 0.16,
+    "dokkaebi": 0.12,
+    "thatcher": 0.09,
+    "maverick": 0.06,
+    "fuze": 0.03,
+    "montagne": 0.03,
+    "kali": 0.03
+   },
+   "defense": {
+    "mira": 0.89,
+    "kaid": 0.5,
+    "azami": 0.18,
+    "bandit": 0.09,
+    "thorn": 0.07,
+    "mute": 0.06,
+    "valkyrie": 0.04,
+    "clash": 0.02,
+    "goyo": 0.02,
+    "fenrir": 0.01
+   }
+  },
+  "winDelta": {
+   "attack": {
+    "ace": 0.013,
+    "thermite": 0.009,
+    "thatcher": 0.009,
+    "kali": 0.009,
+    "solidsnake": 0.004,
+    "dokkaebi": 0.003,
+    "grim": -0.007,
+    "fuze": -0.02
+   },
+   "defense": {
+    "rook": 0.032,
+    "thorn": 0.016,
+    "maestro": 0.012,
+    "valkyrie": 0.009,
+    "fenrir": 0.006,
+    "bandit": -0.001,
+    "mute": -0.006,
+    "azami": -0.007,
+    "mira": -0.012,
+    "kaid": -0.016
+   }
+  }
+ },
+ "maps": {
+  "clubhouse": {
+   "sites": [
+    {
+     "name": "B Church, B Arsenal Room",
+     "kind": "basement",
+     "evidence": {
+      "attack": 3,
+      "defense": 6
+     },
+     "attack": {
+      "S": [
+       "hibana"
+      ],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "goyo",
+       "azami",
+       "mira",
+       "castle"
+      ],
+      "A": [
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "2F CCTV Room, 2F Cash Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 3,
+      "defense": 5
+     },
+     "attack": {
+      "S": [
+       "thermite"
+      ],
+      "A": [
+       "capitao",
+       "montagne",
+       "thatcher"
+      ]
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "mira",
+       "azami"
+      ],
+      "A": [
+       "lesion",
+       "wamai",
+       "castle",
+       "tubarao"
+      ]
+     }
+    },
+    {
+     "name": "2F Gym, 2F Bedroom",
+     "kind": "upper",
+     "evidence": {
+      "attack": 5,
+      "defense": 5
+     },
+     "attack": {
+      "S": [
+       "sens",
+       "zofia"
+      ],
+      "A": [
+       "ace",
+       "gridlock",
+       "hibana",
+       "capitao",
+       "amaru"
+      ]
+     },
+     "defense": {
+      "S": [
+       "castle"
+      ],
+      "A": [
+       "smoke",
+       "thorn",
+       "mira",
+       "tubarao",
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "1F Bar, 1F Stock Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "buck",
+       "ash",
+       "nomad"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "grim",
+     "thermite",
+     "ace",
+     "montagne",
+     "solidsnake",
+     "ying",
+     "thatcher",
+     "hibana",
+     "nomad",
+     "zofia",
+     "sens",
+     "capitao"
+    ],
+    "defense": [
+     "kaid",
+     "bandit",
+     "mira",
+     "azami",
+     "smoke",
+     "goyo",
+     "castle"
+    ]
+   },
+   "proBans": {
+    "games": 42,
+    "rates": {
+     "kaid": 0.905,
+     "bandit": 0.643,
+     "grim": 0.571,
+     "mira": 0.548,
+     "thermite": 0.5,
+     "ace": 0.452,
+     "azami": 0.381,
+     "montagne": 0.333,
+     "solidsnake": 0.286,
+     "ying": 0.262,
+     "wamai": 0.119,
+     "blackbeard": 0.095,
+     "capitao": 0.071,
+     "hibana": 0.071,
+     "blitz": 0.071,
+     "goyo": 0.071,
+     "deimos": 0.048,
+     "glaz": 0.048,
+     "clash": 0.048,
+     "thatcher": 0.024,
+     "nomad": 0.024,
+     "pulse": 0.024,
+     "smoke": 0.024,
+     "maestro": 0.024,
+     "thorn": 0.024
+    }
+   }
+  },
+  "bank": {
+   "sites": [
+    {
+     "name": "B CCTV Room, B Lockers",
+     "kind": "basement",
+     "evidence": {
+      "attack": 3,
+      "defense": 7
+     },
+     "attack": {
+      "S": [
+       "thatcher"
+      ],
+      "A": [
+       "ace",
+       "twitch"
+      ]
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "fenrir"
+      ],
+      "A": [
+       "kaid",
+       "mira",
+       "tubarao",
+       "wamai",
+       "vigil",
+       "tachanka",
+       "mute",
+       "maestro",
+       "goyo",
+       "warden"
+      ]
+     }
+    },
+    {
+     "name": "2F CEO Office, 2F Executive Lounge",
+     "kind": "upper",
+     "evidence": {
+      "attack": 3,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "lion",
+       "buck"
+      ]
+     },
+     "defense": {
+      "S": [
+       "smoke"
+      ],
+      "A": [
+       "mira",
+       "azami",
+       "castle"
+      ]
+     }
+    },
+    {
+     "name": "1F Open Area, 1F Staff Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 3,
+      "defense": 6
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "ram",
+       "ash",
+       "nomad"
+      ]
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "mira"
+      ],
+      "A": [
+       "aruni",
+       "castle",
+       "denari",
+       "valkyrie",
+       "caveira"
+      ]
+     }
+    },
+    {
+     "name": "1F Tellers' Office, 1F Archives",
+     "kind": "ground",
+     "evidence": {
+      "attack": 3,
+      "defense": 2
+     },
+     "attack": {
+      "S": [
+       "buck"
+      ],
+      "A": [
+       "thatcher"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid",
+       "noor"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "ace",
+     "hibana",
+     "montagne",
+     "glaz",
+     "ying",
+     "thatcher",
+     "nomad",
+     "ram",
+     "buck",
+     "lion"
+    ],
+    "defense": [
+     "kaid",
+     "mira",
+     "azami",
+     "wamai",
+     "echo",
+     "smoke"
+    ]
+   },
+   "proBans": {
+    "games": 31,
+    "rates": {
+     "kaid": 0.71,
+     "ace": 0.71,
+     "hibana": 0.613,
+     "montagne": 0.484,
+     "mira": 0.387,
+     "azami": 0.323,
+     "wamai": 0.323,
+     "echo": 0.258,
+     "glaz": 0.258,
+     "ying": 0.258,
+     "valkyrie": 0.226,
+     "castle": 0.161,
+     "grim": 0.097,
+     "clash": 0.097,
+     "thatcher": 0.065,
+     "blitz": 0.065,
+     "goyo": 0.065,
+     "warden": 0.065,
+     "smoke": 0.065,
+     "capitao": 0.065,
+     "solidsnake": 0.065,
+     "dokkaebi": 0.065,
+     "tubarao": 0.032,
+     "ram": 0.032,
+     "blackbeard": 0.032,
+     "kali": 0.032,
+     "maestro": 0.032,
+     "tachanka": 0.032,
+     "bandit": 0.032,
+     "mute": 0.032,
+     "pulse": 0.032
+    }
+   }
+  },
+  "border": {
+   "sites": [
+    {
+     "name": "2F Armory Lockers, 2F Archives",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 6
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "ace",
+       "thatcher",
+       "capitao",
+       "nomad"
+      ]
+     },
+     "defense": {
+      "S": [
+       "aruni"
+      ],
+      "A": [
+       "mute",
+       "smoke",
+       "jager",
+       "warden",
+       "thorn",
+       "mira",
+       "goyo",
+       "wamai"
+      ]
+     }
+    },
+    {
+     "name": "1F Workshop, 1F Ventilation Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 6
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "sledge",
+       "hibana"
+      ]
+     },
+     "defense": {
+      "S": [
+       "warden",
+       "smoke",
+       "solis",
+       "aruni"
+      ],
+      "A": [
+       "castle",
+       "mira",
+       "valkyrie",
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "1F Tellers, 1F Bathroom",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 5
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "ying"
+      ]
+     },
+     "defense": {
+      "S": [
+       "castle",
+       "melusi"
+      ],
+      "A": [
+       "smoke",
+       "kapkan"
+      ]
+     }
+    },
+    {
+     "name": "1F Customs Inspection, 1F Supply Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "smoke",
+       "valkyrie",
+       "bandit",
+       "castle"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "solidsnake",
+     "ying",
+     "glaz",
+     "deimos",
+     "montagne",
+     "thatcher",
+     "buck",
+     "capitao",
+     "nomad",
+     "sledge"
+    ],
+    "defense": [
+     "azami",
+     "wamai",
+     "mira",
+     "kaid",
+     "smoke",
+     "valkyrie",
+     "warden",
+     "aruni",
+     "castle"
+    ]
+   },
+   "proBans": {
+    "games": 35,
+    "rates": {
+     "azami": 0.629,
+     "wamai": 0.571,
+     "mira": 0.543,
+     "solidsnake": 0.514,
+     "ying": 0.4,
+     "kaid": 0.371,
+     "glaz": 0.371,
+     "deimos": 0.286,
+     "montagne": 0.257,
+     "ace": 0.171,
+     "goyo": 0.171,
+     "zofia": 0.143,
+     "grim": 0.143,
+     "bandit": 0.114,
+     "thermite": 0.114,
+     "mute": 0.114,
+     "ela": 0.086,
+     "twitch": 0.057,
+     "thatcher": 0.057,
+     "warden": 0.057,
+     "solis": 0.057,
+     "blitz": 0.057,
+     "blackbeard": 0.057,
+     "dokkaebi": 0.057,
+     "thorn": 0.029,
+     "noor": 0.029,
+     "nomad": 0.029,
+     "hibana": 0.029,
+     "smoke": 0.029,
+     "clash": 0.029,
+     "castle": 0.029
+    }
+   }
+  },
+  "chalet": {
+   "sites": [
+    {
+     "name": "B Wine Cellar, B Snowmobile Garage",
+     "kind": "basement",
+     "evidence": {
+      "attack": 2,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "warden"
+      ],
+      "A": []
+     }
+    },
+    {
+     "name": "1F Bar, 1F Gaming Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 5,
+      "defense": 6
+     },
+     "attack": {
+      "S": [
+       "nomad"
+      ],
+      "A": [
+       "blitz",
+       "sens",
+       "thatcher",
+       "glaz",
+       "gridlock",
+       "hibana",
+       "ash"
+      ]
+     },
+     "defense": {
+      "S": [
+       "frost",
+       "smoke",
+       "wamai",
+       "warden"
+      ],
+      "A": [
+       "goyo",
+       "mira",
+       "fenrir"
+      ]
+     }
+    },
+    {
+     "name": "1F Dining Room, 1F Kitchen",
+     "kind": "ground",
+     "evidence": {
+      "attack": 4,
+      "defense": 6
+     },
+     "attack": {
+      "S": [
+       "ying"
+      ],
+      "A": [
+       "hibana",
+       "gridlock",
+       "sens",
+       "capitao"
+      ]
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "frost"
+      ],
+      "A": [
+       "wamai",
+       "kaid",
+       "bandit"
+      ]
+     }
+    },
+    {
+     "name": "2F Master Bedroom, 2F Office",
+     "kind": "upper",
+     "evidence": {
+      "attack": 1,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "denari"
+      ],
+      "A": [
+       "solis",
+       "fenrir",
+       "kaid",
+       "thorn"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "montagne",
+     "grim",
+     "solidsnake",
+     "nomad",
+     "hibana",
+     "ying",
+     "gridlock",
+     "blitz",
+     "sens"
+    ],
+    "defense": [
+     "wamai",
+     "azami",
+     "smoke",
+     "frost",
+     "warden"
+    ]
+   },
+   "proBans": {
+    "games": 33,
+    "rates": {
+     "wamai": 0.818,
+     "montagne": 0.636,
+     "azami": 0.636,
+     "grim": 0.485,
+     "solidsnake": 0.485,
+     "glaz": 0.242,
+     "kaid": 0.242,
+     "thorn": 0.242,
+     "deimos": 0.212,
+     "clash": 0.182,
+     "ace": 0.152,
+     "ying": 0.121,
+     "bandit": 0.121,
+     "blitz": 0.091,
+     "blackbeard": 0.091,
+     "mira": 0.091,
+     "dokkaebi": 0.091,
+     "ela": 0.091,
+     "smoke": 0.061,
+     "solis": 0.061,
+     "goyo": 0.061,
+     "capitao": 0.061,
+     "nomad": 0.061,
+     "denari": 0.061,
+     "thatcher": 0.03,
+     "brava": 0.03,
+     "fenrir": 0.03,
+     "twitch": 0.03,
+     "melusi": 0.03,
+     "thermite": 0.03,
+     "tubarao": 0.03,
+     "tachanka": 0.03
+    }
+   }
+  },
+  "villa": {
+   "sites": [
+    {
+     "name": "2F Trophy Room, 2F Statuary Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "ying"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid",
+       "warden",
+       "jager"
+      ]
+     }
+    },
+    {
+     "name": "1F Dining Room, 1F Kitchen",
+     "kind": "ground",
+     "evidence": {
+      "attack": 3,
+      "defense": 1
+     },
+     "attack": {
+      "S": [
+       "ace"
+      ],
+      "A": [
+       "buck",
+       "thatcher",
+       "blitz"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "2F Aviator Room, 2F Games Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 1,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "B Art Storage, B Old Office",
+     "kind": "basement",
+     "evidence": {
+      "attack": 2,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "hibana",
+       "ace",
+       "sledge",
+       "thatcher"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "solidsnake",
+     "ace",
+     "deimos",
+     "montagne",
+     "hibana",
+     "thatcher",
+     "flores"
+    ],
+    "defense": [
+     "wamai",
+     "azami",
+     "mira",
+     "kaid",
+     "jager",
+     "melusi"
+    ]
+   },
+   "proBans": {
+    "games": 27,
+    "rates": {
+     "wamai": 0.926,
+     "solidsnake": 0.852,
+     "azami": 0.704,
+     "ace": 0.444,
+     "deimos": 0.407,
+     "montagne": 0.259,
+     "mira": 0.259,
+     "grim": 0.185,
+     "blitz": 0.185,
+     "ying": 0.185,
+     "mute": 0.148,
+     "glaz": 0.148,
+     "kaid": 0.111,
+     "pulse": 0.111,
+     "thorn": 0.111,
+     "valkyrie": 0.111,
+     "twitch": 0.074,
+     "goyo": 0.074,
+     "warden": 0.037,
+     "hibana": 0.037,
+     "clash": 0.037,
+     "thatcher": 0.037,
+     "striker": 0.037,
+     "brava": 0.037,
+     "bandit": 0.037
+    }
+   }
+  },
+  "casino": {
+   "sites": [
+    {
+     "name": "1F Bar, 1F Betting",
+     "kind": "ground",
+     "evidence": {
+      "attack": 1,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "B CCTV, B Vault Checkpoint",
+     "kind": "basement",
+     "evidence": {
+      "attack": 2,
+      "defense": 3
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "thermite",
+       "rauora",
+       "flores"
+      ]
+     },
+     "defense": {
+      "S": [
+       "kaid",
+       "smoke",
+       "echo"
+      ],
+      "A": [
+       "castle"
+      ]
+     }
+    },
+    {
+     "name": "2F Cigar Room, 2F Pool",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "capitao"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "1F Blackjack, 1F Poker",
+     "kind": "ground",
+     "evidence": {
+      "attack": 1,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "ram",
+     "capitao",
+     "gridlock",
+     "thermite",
+     "rauora",
+     "nomad",
+     "flores",
+     "ying",
+     "thatcher"
+    ],
+    "defense": [
+     "kaid",
+     "smoke",
+     "echo",
+     "castle"
+    ]
+   },
+   "proBans": {
+    "games": 0,
+    "rates": {}
+   }
+  },
+  "consulate": {
+   "sites": [
+    {
+     "name": "1F Tellers, B Servers",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 3
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "zero"
+      ]
+     },
+     "defense": {
+      "S": [
+       "valkyrie",
+       "pulse"
+      ],
+      "A": [
+       "kaid",
+       "mute"
+      ]
+     }
+    },
+    {
+     "name": "2F Meeting Room, 2F Consulate Office",
+     "kind": "upper",
+     "evidence": {
+      "attack": 6,
+      "defense": 4
+     },
+     "attack": {
+      "S": [
+       "ying",
+       "thatcher",
+       "glaz",
+       "nomad"
+      ],
+      "A": [
+       "deimos",
+       "grim",
+       "flores"
+      ]
+     },
+     "defense": {
+      "S": [
+       "goyo"
+      ],
+      "A": [
+       "warden",
+       "smoke",
+       "jager",
+       "thorn"
+      ]
+     }
+    },
+    {
+     "name": "1F Piano Room, 1F Exposition Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 3,
+      "defense": 6
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "capitao",
+       "buck"
+      ]
+     },
+     "defense": {
+      "S": [
+       "valkyrie",
+       "mute"
+      ],
+      "A": [
+       "pulse",
+       "mira",
+       "kaid",
+       "warden",
+       "solis",
+       "goyo",
+       "denari",
+       "castle"
+      ]
+     }
+    },
+    {
+     "name": "B Cafeteria, B Garage",
+     "kind": "basement",
+     "evidence": {
+      "attack": 2,
+      "defense": 6
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "kaid",
+       "mira",
+       "aruni"
+      ],
+      "A": [
+       "mute",
+       "pulse"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "thatcher",
+     "buck",
+     "nomad",
+     "ying",
+     "glaz"
+    ],
+    "defense": [
+     "kaid",
+     "goyo",
+     "valkyrie",
+     "pulse",
+     "mira",
+     "mute"
+    ]
+   },
+   "proBans": {
+    "games": 2,
+    "rates": {
+     "capitao": 1,
+     "kaid": 1,
+     "bandit": 1,
+     "grim": 0.5,
+     "thermite": 0.5,
+     "montagne": 0.5,
+     "solidsnake": 0.5,
+     "mira": 0.5
+    }
+   }
+  },
+  "fortress": {
+   "sites": [
+    {
+     "name": "1F Waiting Room, 1F Cafeteria",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "hibana"
+      ]
+     },
+     "defense": {
+      "S": [
+       "kaid"
+      ],
+      "A": [
+       "fenrir",
+       "smoke",
+       "azami",
+       "frost"
+      ]
+     }
+    },
+    {
+     "name": "1F Hammam, 1F Sitting Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 3,
+      "defense": 1
+     },
+     "attack": {
+      "S": [
+       "thermite",
+       "nomad"
+      ],
+      "A": [
+       "capitao",
+       "glaz",
+       "ying"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "2F Commander's Office, 2F Bathroom",
+     "kind": "upper",
+     "evidence": {
+      "attack": 1,
+      "defense": 3
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "smoke",
+       "bandit",
+       "castle"
+      ]
+     }
+    },
+    {
+     "name": "2F Dormitory, 2F Games Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 3
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "thermite",
+       "flores",
+       "osa"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid",
+       "smoke",
+       "azami"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "solidsnake",
+     "glaz",
+     "montagne",
+     "blitz",
+     "thatcher",
+     "nomad",
+     "thermite",
+     "capitao",
+     "flores",
+     "osa"
+    ],
+    "defense": [
+     "kaid",
+     "bandit",
+     "mira",
+     "azami",
+     "fenrir",
+     "smoke",
+     "frost"
+    ]
+   },
+   "proBans": {
+    "games": 35,
+    "rates": {
+     "kaid": 0.714,
+     "solidsnake": 0.657,
+     "bandit": 0.571,
+     "glaz": 0.486,
+     "montagne": 0.457,
+     "mira": 0.371,
+     "blitz": 0.314,
+     "azami": 0.286,
+     "deimos": 0.2,
+     "goyo": 0.2,
+     "ace": 0.2,
+     "grim": 0.171,
+     "ying": 0.171,
+     "clash": 0.143,
+     "wamai": 0.143,
+     "smoke": 0.114,
+     "blackbeard": 0.086,
+     "solis": 0.086,
+     "valkyrie": 0.057,
+     "warden": 0.057,
+     "thorn": 0.057,
+     "ela": 0.057,
+     "tachanka": 0.057,
+     "dokkaebi": 0.057,
+     "twitch": 0.029,
+     "aruni": 0.029,
+     "capitao": 0.029
+    }
+   }
+  },
+  "kafe": {
+   "sites": [
+    {
+     "name": "2F Fireplace Hall, 2F Mining Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 1,
+      "defense": 5
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "melusi"
+      ],
+      "A": [
+       "kaid",
+       "pulse",
+       "valkyrie",
+       "azami",
+       "mira",
+       "mute"
+      ]
+     }
+    },
+    {
+     "name": "1F Kitchen Service, 1F Kitchen Cooking",
+     "kind": "ground",
+     "evidence": {
+      "attack": 5,
+      "defense": 4
+     },
+     "attack": {
+      "S": [
+       "buck",
+       "lion"
+      ],
+      "A": [
+       "ace",
+       "thatcher",
+       "jackal",
+       "ram",
+       "blitz",
+       "grim"
+      ]
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "aruni",
+       "goyo"
+      ],
+      "A": [
+       "valkyrie"
+      ]
+     }
+    },
+    {
+     "name": "3F Cocktail Lounge, 3F Bar",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "sens",
+       "gridlock"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "clash",
+       "kaid",
+       "solis",
+       "valkyrie",
+       "mozzie"
+      ]
+     }
+    },
+    {
+     "name": "2F Reading Room, 2F Fireplace Hall",
+     "kind": "upper",
+     "evidence": {
+      "attack": 5,
+      "defense": 7
+     },
+     "attack": {
+      "S": [
+       "nomad"
+      ],
+      "A": [
+       "gridlock",
+       "sledge",
+       "blitz",
+       "iana"
+      ]
+     },
+     "defense": {
+      "S": [
+       "kaid",
+       "clash",
+       "wamai"
+      ],
+      "A": [
+       "aruni",
+       "castle",
+       "tubarao",
+       "jager",
+       "thorn",
+       "melusi"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "montagne",
+     "solidsnake",
+     "grim",
+     "ying",
+     "buck",
+     "nomad",
+     "blitz",
+     "lion",
+     "gridlock",
+     "sens"
+    ],
+    "defense": [
+     "wamai",
+     "azami",
+     "kaid",
+     "mira",
+     "aruni",
+     "clash",
+     "melusi",
+     "valkyrie"
+    ]
+   },
+   "proBans": {
+    "games": 24,
+    "rates": {
+     "wamai": 0.667,
+     "azami": 0.5,
+     "montagne": 0.5,
+     "solidsnake": 0.458,
+     "grim": 0.375,
+     "kaid": 0.375,
+     "ying": 0.333,
+     "mira": 0.25,
+     "ace": 0.208,
+     "blitz": 0.167,
+     "blackbeard": 0.167,
+     "clash": 0.125,
+     "pulse": 0.125,
+     "dokkaebi": 0.125,
+     "castle": 0.125,
+     "capitao": 0.125,
+     "bandit": 0.125,
+     "thorn": 0.083,
+     "gridlock": 0.083,
+     "valkyrie": 0.083,
+     "glaz": 0.083,
+     "thermite": 0.083,
+     "jager": 0.042,
+     "nomad": 0.042,
+     "noor": 0.042,
+     "smoke": 0.042,
+     "zofia": 0.042,
+     "solis": 0.042,
+     "mute": 0.042,
+     "aruni": 0.042,
+     "goyo": 0.042,
+     "deimos": 0.042
+    }
+   }
+  },
+  "kanal": {
+   "sites": [
+    {
+     "name": "1F Security Room, 1F Maps Room",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "iana",
+       "gridlock"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "1F Coast Guard Meeting Room, 1F Lounge",
+     "kind": "ground",
+     "evidence": {
+      "attack": 1,
+      "defense": 3
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "caveira"
+      ],
+      "A": [
+       "vigil"
+      ]
+     }
+    },
+    {
+     "name": "2F Server Room, 2F Radar Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "thermite",
+       "thatcher",
+       "ying"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "B Supply Room, B Kayaks",
+     "kind": "basement",
+     "evidence": {
+      "attack": 1,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "ace",
+     "thatcher",
+     "buck",
+     "iana",
+     "gridlock",
+     "nomad",
+     "thermite",
+     "ying",
+     "capitao",
+     "zofia"
+    ],
+    "defense": [
+     "vigil",
+     "maestro",
+     "caveira",
+     "kaid",
+     "mute",
+     "wamai",
+     "melusi",
+     "frost"
+    ]
+   },
+   "proBans": {
+    "games": 0,
+    "rates": {}
+   }
+  },
+  "lair": {
+   "sites": [
+    {
+     "name": "1F Bunks, 1F Briefing",
+     "kind": "ground",
+     "evidence": {
+      "attack": 1,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "warden"
+      ],
+      "A": [
+       "smoke",
+       "solis"
+      ]
+     }
+    },
+    {
+     "name": "1F Armory, 1F Weapon Maintenance",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "sens"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "2F Master Office, 2F R6 Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 5
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "azami",
+       "tachanka",
+       "goyo",
+       "bandit"
+      ],
+      "A": [
+       "fenrir"
+      ]
+     }
+    },
+    {
+     "name": "B Lab, B Lab Support",
+     "kind": "basement",
+     "evidence": {
+      "attack": 4,
+      "defense": 6
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "blitz",
+       "twitch",
+       "ying",
+       "sledge",
+       "ram",
+       "finka",
+       "zofia"
+      ]
+     },
+     "defense": {
+      "S": [
+       "smoke",
+       "azami",
+       "goyo"
+      ],
+      "A": [
+       "mute",
+       "fenrir",
+       "aruni",
+       "solis",
+       "valkyrie"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "montagne",
+     "grim",
+     "ace",
+     "solidsnake",
+     "zofia",
+     "ying",
+     "ram",
+     "gridlock"
+    ],
+    "defense": [
+     "kaid",
+     "bandit",
+     "mira",
+     "azami",
+     "smoke",
+     "goyo",
+     "warden"
+    ]
+   },
+   "proBans": {
+    "games": 37,
+    "rates": {
+     "kaid": 0.784,
+     "bandit": 0.649,
+     "montagne": 0.486,
+     "grim": 0.405,
+     "mira": 0.405,
+     "ace": 0.351,
+     "azami": 0.351,
+     "solidsnake": 0.27,
+     "ying": 0.243,
+     "glaz": 0.243,
+     "wamai": 0.216,
+     "deimos": 0.189,
+     "blackbeard": 0.189,
+     "blitz": 0.162,
+     "thermite": 0.135,
+     "clash": 0.108,
+     "capitao": 0.108,
+     "tachanka": 0.081,
+     "goyo": 0.054,
+     "thorn": 0.054,
+     "smoke": 0.027,
+     "ram": 0.027,
+     "castle": 0.027,
+     "solis": 0.027,
+     "dokkaebi": 0.027
+    }
+   }
+  },
+  "nighthaven": {
+   "sites": [
+    {
+     "name": "1F Control Room, 1F Storage",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "thermite"
+      ]
+     },
+     "defense": {
+      "S": [
+       "azami"
+      ],
+      "A": [
+       "mute",
+       "smoke",
+       "castle"
+      ]
+     }
+    },
+    {
+     "name": "2F Command Center, 2F Servers",
+     "kind": "upper",
+     "evidence": {
+      "attack": 1,
+      "defense": 6
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [
+       "warden",
+       "azami",
+       "bandit",
+       "smoke"
+      ],
+      "A": [
+       "goyo",
+       "echo",
+       "mute"
+      ]
+     }
+    },
+    {
+     "name": "B Tank, B Assembly",
+     "kind": "basement",
+     "evidence": {
+      "attack": 1,
+      "defense": 4
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "warden",
+       "mute",
+       "castle",
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "1F Kitchen, 1F Cafeteria",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "sledge"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "mute"
+      ]
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "grim",
+     "solidsnake",
+     "montagne",
+     "thermite",
+     "ace",
+     "blitz",
+     "kali",
+     "buck",
+     "zofia",
+     "gridlock",
+     "sledge",
+     "capitao"
+    ],
+    "defense": [
+     "kaid",
+     "mira",
+     "bandit",
+     "warden",
+     "azami",
+     "mute",
+     "smoke",
+     "castle"
+    ]
+   },
+   "proBans": {
+    "games": 28,
+    "rates": {
+     "kaid": 0.893,
+     "mira": 0.75,
+     "bandit": 0.714,
+     "grim": 0.429,
+     "solidsnake": 0.429,
+     "montagne": 0.429,
+     "thermite": 0.357,
+     "ace": 0.25,
+     "blitz": 0.25,
+     "azami": 0.179,
+     "blackbeard": 0.179,
+     "glaz": 0.143,
+     "clash": 0.107,
+     "ying": 0.107,
+     "mute": 0.071,
+     "thatcher": 0.071,
+     "deimos": 0.071,
+     "solis": 0.071,
+     "wamai": 0.036,
+     "ram": 0.036,
+     "capitao": 0.036,
+     "goyo": 0.036,
+     "pulse": 0.036,
+     "thorn": 0.036
+    }
+   }
+  },
+  "oregon": {
+   "sites": [
+    {
+     "name": "1F Kitchen, 1F Dining Hall",
+     "kind": "ground",
+     "evidence": {
+      "attack": 2,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "thermite",
+       "kali",
+       "ash",
+       "buck"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "1F Meeting Hall, 1F Kitchen",
+     "kind": "ground",
+     "evidence": {
+      "attack": 1,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid",
+       "bandit",
+       "castle"
+      ]
+     }
+    },
+    {
+     "name": "B Laundry Room, B Supply Room",
+     "kind": "basement",
+     "evidence": {
+      "attack": 3,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "blitz",
+       "fuze",
+       "hibana"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "2F Kids' Dorms, 2F Dorms Main Hall",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "thermite",
+       "thatcher",
+       "maverick",
+       "buck"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    }
+   ],
+   "strong": {
+    "attack": [
+     "thermite",
+     "kali",
+     "buck",
+     "gridlock",
+     "thatcher"
+    ],
+    "defense": [
+     "kaid",
+     "valkyrie",
+     "vigil",
+     "bandit",
+     "castle",
+     "caveira"
+    ]
+   },
+   "proBans": {
+    "games": 0,
+    "rates": {}
+   }
+  },
+  "coastline": {
+   "sites": [
+    {
+     "name": "2F Hookah Lounge, 2F Billiards Room",
+     "kind": "upper",
+     "evidence": {
+      "attack": 1,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "mute",
+       "kaid"
+      ]
+     }
+    },
+    {
+     "name": "2F Theater, 2F Penthouse",
+     "kind": "upper",
+     "evidence": {
+      "attack": 1,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    }
+   ],
+   "strong": {
+    "attack": [],
+    "defense": []
+   },
+   "proBans": {
+    "games": 0,
+    "rates": {}
+   }
+  },
+  "outback": {
+   "sites": [
+    {
+     "name": "2F Party Room, 2F Office",
+     "kind": "upper",
+     "evidence": {
+      "attack": 0,
+      "defense": 2
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": [
+       "kaid",
+       "mute",
+       "valkyrie"
+      ]
+     }
+    },
+    {
+     "name": "2F Piano Room, 2F Laundry",
+     "kind": "upper",
+     "evidence": {
+      "attack": 2,
+      "defense": 0
+     },
+     "attack": {
+      "S": [],
+      "A": [
+       "thermite"
+      ]
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    },
+    {
+     "name": "1F Green Bedroom, 1F Red Bedroom",
+     "kind": "ground",
+     "evidence": {
+      "attack": 0,
+      "defense": 1
+     },
+     "attack": {
+      "S": [],
+      "A": []
+     },
+     "defense": {
+      "S": [],
+      "A": []
+     }
+    }
+   ],
+   "strong": {
+    "attack": [],
+    "defense": []
+   },
+   "proBans": {
+    "games": 0,
+    "rates": {}
+   }
+  }
+ },
+ "sources": [
+  {
+   "name": "siegestrats.com site lineups",
+   "detail": "338 lineups, fetched 2026-10-19",
+   "url": "https://siegestrats.com/strats"
+  },
+  {
+   "name": "Liquipedia pro matches (operator bans per map)",
+   "detail": "294 games: Europe_MENA_League/2026/Stage_2, Europe_MENA_League/2026/Stage_2/Group_Stage, North_America_League/2026/Stage_2, North_America_League/2026/Stage_2/Group_Stage, South_America_League/2026/Stage_2, South_America_League/2026/Stage_2/Group_Stage, Asia_Pacific_League/2026/Stage_2/APAC_North/Group_Stage, Asia_Pacific_League/2026/Stage_2/Asia/Group_Stage, Asia_Pacific_League/2026/Stage_2/Oceania/Group_Stage, BLAST_Major/2026/May, BLAST_Major/2026/May/Phase_2",
+   "url": "https://liquipedia.net/rainbowsix/"
+  },
+  {
+   "name": "Ubisoft Designer's Notes (Ranked, PC, Platinum & above, Y11S3.1 (published 2026-10-15))",
+   "detail": "ban rates + win delta",
+   "url": "https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/280F3jL91f371i6YbH3mew/designers-notes-y11s3-midseason-update"
+  },
+  {
+   "name": "Patch notes",
+   "detail": "Y11S3.2",
+   "url": "https://news.ubisoft.com/en-us/article/1yzD1EJhuk6vXsTt8eP1hf/rainbow-six-siege-operation-split-fire-midseason-update-legend-division-arrives-noor-buffs-and-a-final-ranked-map-rotation"
+  },
+  {
+   "name": "Patch notes",
+   "detail": "Y11S3.2",
+   "url": "https://siegestrats.com/season"
+  }
+ ]
+}

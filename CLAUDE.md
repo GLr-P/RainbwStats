@@ -16,6 +16,8 @@ boxes and add a log row when a phase finishes.
 - `npm run dev`: dev app. Scripts go through `scripts/run.mjs` because VS Code sets `ELECTRON_RUN_AS_NODE=1`
 
 ## Gotchas
+- Meta/site data: follow docs/META-RESEARCH.md (research scripts in scripts/research, output src/shared/data/meta.json + dataset)
+- Don't repeatedly run E2E on copies of the user's real profile: each run creates a Ubisoft session → account rate limit
 - The Bash tool collapses backslashes and breaks on backticks in heredocs / node -e. Use Write/Edit for code containing either
 - Release: bump version in package.json → tag vX.Y.Z → push tag (release.yml builds + publishes). Fallback: `npm run dist` + `gh release create` with release/*.exe, *.blockmap, latest.yml
 - Visual check: `npm run shots` then look at site/img/*.png (demo data, safe to publish)

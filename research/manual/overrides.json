@@ -1,0 +1,8 @@
+{
+  "note": "Expert/player corrections layered on top of researched tiers. Each entry: map → replay-format site → side → {S?, A?} to add.",
+  "sites": {
+    "clubhouse": {
+      "2F CCTV Room, 2F Cash Room": { "defense": { "A": ["tubarao"] }, "why": "Player report (2026-10-20): Tubarão is a standard CCTV pick; lineup sample is small (5)." }
+    }
+  }
+}
