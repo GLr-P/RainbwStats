@@ -1,12 +1,12 @@
 // Pure construction of LiveState from stored rounds. No I/O beyond the Ctx queries.
 import type { Ctx } from '../services'
-import { mainsOf, outsideRosterPick, recsFor, siteRecsFor, type Teammate } from '../services'
+import { banSuggestions, mainsOf, outsideRosterPick, recsFor, siteRecsFor, type Teammate } from '../services'
 import type { LivePhase, LivePlayer, LiveState, PlayerCard, RoundSummary } from '../../shared/ipc'
 import type { RoundRecord, Side } from '../../shared/types'
 
 export const emptyLive = (gameRunning = false): LiveState => ({
   phase: gameRunning ? 'game' : 'idle', gameRunning, matchId: null, mapKey: null, side: null, site: null, nextRound: 1,
-  score: [0, 0], myTeam: [], enemyTeam: [], recommendations: [], otherSide: null, outsideRoster: null, siteRecs: [], rounds: [], source: null, lobbyError: null,
+  score: [0, 0], myTeam: [], enemyTeam: [], recommendations: [], otherSide: null, outsideRoster: null, siteRecs: [], rounds: [], bans: null, source: null, lobbyError: null,
   updatedAt: new Date().toISOString()
 })
 
@@ -93,6 +93,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
     otherSide: otherSidePicks(ctx, mapKey, side, teammates),
     siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side, 3, teammates),
     rounds: summaries,
+    bans: null, // ban phase is over once a round is recorded
     source: o.override ? 'ocr' : 'replay',
     lobbyError: o.lobbyError ?? null,
     updatedAt: new Date().toISOString()
@@ -112,6 +113,7 @@ function overrideOnly(ctx: Ctx, o: BuildOpts): Partial<LiveState> {
     outsideRoster: outsideRosterPick(ctx, { mapKey, side, site }, first[0]),
     otherSide: otherSidePicks(ctx, mapKey, side),
     siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side),
+    bans: banSuggestions(ctx, mapKey),
     source: o.phase === 'idle' ? 'preview' : 'ocr'
   }
 }

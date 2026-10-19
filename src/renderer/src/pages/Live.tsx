@@ -4,6 +4,7 @@ import { allMaps, mapName } from '../../../shared/catalog'
 import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
 import { OpChip, RankBadge, Meter, SideTag, Seg, pct, ratio, rs, useData } from '../lib'
+import { BansPanel } from '../Bans'
 
 export function LivePage({ live, settings, status }: { live: LiveState | null; settings: Settings; status: AppStatus | undefined }) {
   const [preview, setPreview] = useState<LiveState | null>(null)
@@ -23,7 +24,12 @@ export function LivePage({ live, settings, status }: { live: LiveState | null; s
               {p.recommendations && <Picks s={s} />}
               {p.siteBreakdown && s.siteRecs.length > 0 && <SiteBreakdown s={s} />}
             </div>
-            {p.teams && inMatch && <Teams s={s} />}
+            {(s.bans && s.rounds.length === 0) || (p.teams && inMatch) ? (
+              <div className="row" style={{ alignItems: 'stretch', flexDirection: 'column', gap: 'var(--gap)' }}>
+                {s.bans && s.rounds.length === 0 && <BansPanel bans={s.bans} note="ban phase · ops you play rank lower" />}
+                {p.teams && inMatch && <Teams s={s} />}
+              </div>
+            ) : null}
           </div>
           {p.timeline && inMatch && s.rounds.length > 0 && <Timeline s={s} />}
         </>

@@ -1,7 +1,7 @@
 // Query layer shared by IPC handlers and the live engine.
 import type { Db } from './db'
 import type { Dataset } from '../shared/data/dataset'
-import type { ApiOps, GlobalFilter, GlobalMeta, GuideOp, LivePlayer, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
+import type { ApiOps, GlobalFilter, GlobalMeta, GuideOp, LivePlayer, MapBans, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
 import { baselineFor, recommend, ROLE_PRIOR, type AggMap } from '../shared/recommend'
 import { allOperators, operatorById, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import type { RoleTag } from '../shared/data/operators'
@@ -9,6 +9,7 @@ import { KIND_FIT, mapStrongFor, proBansFor, seedSitesFor, siteKindFor, siteTier
 import { meta } from '../shared/data/meta'
 import type { Agg, Side } from '../shared/types'
 import { bandOf, type CrowdMeta } from '../shared/crowd'
+import { suggestBans } from '../shared/bans'
 
 export interface Ctx {
   db: Db
@@ -283,7 +284,7 @@ export function mapGuide(ctx: Ctx, mapKey: string, side: Side): MapGuide {
   const ranked = allOperators(side).map((op) => ({ ...cell(op.key), banRate: m.ranked.bans[side][op.key] ?? null }))
     .filter((r) => r.winDelta !== null || r.banRate !== null).sort(byDelta)
   return {
-    mapKey, side, sites, strong: mapStrongFor(mapKey, side).map(cell).sort(byDelta), proBans, proGames: m.maps[mapKey]?.proBans.games ?? 0,
+    mapKey, side, sites, bans: banSuggestions(ctx, mapKey), strong: mapStrongFor(mapKey, side).map(cell).sort(byDelta), proBans, proGames: m.maps[mapKey]?.proBans.games ?? 0,
     ranked, info: { version: m.version, patch: m.patch, rankedScope: m.ranked.scope, sources: m.sources, notes: m.notes }
   }
 }
@@ -306,4 +307,28 @@ export function globalMeta(ctx: Ctx, f: GlobalFilter, status: Pick<GlobalMeta, '
     rounds: career ? 0 : rows.reduce((n, r) => n + r.rounds, 0),
     scope: career ? 'career' : 'replays', rows, sites, yourBand: rank ? bandOf(rank) : null, ...status
   }
+}
+
+/** Global win delta per operator key on a side (vs that side's average, shrunk ~500 rounds), when 30+ players share. */
+export function globalDelta(ctx: Ctx, side: Side): Record<string, number> | undefined {
+  const g = ctx.crowd?.() ?? null
+  const band = yourBand(ctx, g)
+  if ((band !== null ? bandPlayers(g, band) : g?.players ?? 0) < 30) return undefined
+  const rows = [...globalOps(g, band ?? undefined)].filter(([k]) => operatorByKey(k)?.side === side)
+  const n = rows.reduce((s, [, a]) => s + a.rounds, 0)
+  if (!n) return undefined
+  const avg = rows.reduce((s, [, a]) => s + a.wins, 0) / n
+  return Object.fromEntries(rows.map(([k, a]) => [k, (a.wins + avg * 500) / (a.rounds + 500) - avg]))
+}
+
+/** Suggested bans on a map for both sides (each team bans one attacker and one defender). */
+export function banSuggestions(ctx: Ctx, mapKey: string, top = 3): MapBans {
+  const m = meta()
+  const forSide = (side: Side) => suggestBans({
+    side, candidates: allOperators(side).map((o) => ({ key: o.key, name: o.name })),
+    winDelta: m.ranked.winDelta[side], rankedBan: m.ranked.bans[side], proBan: proBansFor(mapKey), strong: mapStrongFor(mapKey, side),
+    crowdDelta: globalDelta(ctx, side),
+    yours: effectiveRoster(ctx, side).map((id) => operatorById(id)?.key).filter((k): k is string => !!k)
+  }, top)
+  return { attack: forSide('attack'), defense: forSide('defense') }
 }

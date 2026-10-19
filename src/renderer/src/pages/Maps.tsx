@@ -5,6 +5,7 @@ import { allMaps } from '../../../shared/catalog'
 import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
 import { Bar, Seg, SideTag, pct, rs, useData, useSort } from '../lib'
+import { BansPanel } from '../Bans'
 
 const signed = (x: number | null) => (x === null ? '' : `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}%`)
 
@@ -67,6 +68,7 @@ export function MapsPage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+            <BansPanel bans={g.bans} />
             <div className="panel">
               <h2>Strong on this map <SideTag side={side} /></h2>
               <div className="row" style={{ gap: 6 }}>{g.strong.length ? g.strong.map((o) => <Op key={o.key} op={o} />) : <span className="faint small">No map-level data</span>}</div>

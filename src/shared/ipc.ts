@@ -2,6 +2,7 @@
 // for every method in API_METHODS (channel "rs:<method>"). Live updates arrive on "rs:live".
 import type { Agg, Side } from './types'
 import type { CatalogOverrides } from './catalog'
+import type { BanSuggestion } from './bans'
 
 export interface PlayerCard {
   profileId: string
@@ -59,6 +60,8 @@ export interface LiveState {
   outsideRoster: Recommendation | null
   siteRecs: { site: string; recs: Recommendation[] }[]
   rounds: RoundSummary[]
+  /** Suggested bans for the map (shown before round 1, when the map is known). */
+  bans: MapBans | null
   source: 'replay' | 'ocr' | 'preview' | 'simulation' | null
   lobbyError: string | null
   updatedAt: string
@@ -150,9 +153,11 @@ export interface SimRequest { mapKey: string; side: Side; myTeam: string[]; enem
 
 /** One operator in the Maps tab, with the signals used to sort/explain it. */
 export interface GuideOp { key: string; name: string; winDelta: number | null; proBan: number | null; yourRounds: number; yourWinRate: number | null }
+export interface MapBans { attack: BanSuggestion[]; defense: BanSuggestion[] }
 export interface MapGuide {
   mapKey: string
   side: Side
+  bans: MapBans
   sites: { name: string; kind: 'basement' | 'ground' | 'upper'; source: 'research' | 'curated' | 'none'; confidence: number; S: GuideOp[]; A: GuideOp[]; picks: Recommendation[] }[]
   strong: GuideOp[]
   proBans: GuideOp[]
