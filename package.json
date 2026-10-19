@@ -1,0 +1,42 @@
+{
+  "name": "rainbwstats",
+  "productName": "RainbwStats",
+  "version": "0.1.0",
+  "description": "Ad-free Rainbow Six Siege companion: live lobby stats, operator analytics and roster-aware recommendations.",
+  "license": "MIT",
+  "author": "GLr-P",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/run.mjs electron-vite dev",
+    "build": "electron-vite build",
+    "start": "node scripts/run.mjs electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run test",
+    "smoke": "electron-vite build && node scripts/run.mjs electron . --smoke",
+    "dist": "electron-vite build && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^6.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/rajdhani": "^5.3.0",
+    "electron-updater": "^6.8.9",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true
+  }
+}
