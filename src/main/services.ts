@@ -4,6 +4,7 @@ import type { Dataset } from '../shared/data/dataset'
 import type { ApiOps, LivePlayer, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
 import { baselineFor, recommend, type AggMap } from '../shared/recommend'
 import { allOperators, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
+import { SEED_SITES } from '../shared/data/maps'
 import type { Side } from '../shared/types'
 
 export interface Ctx {
@@ -101,8 +102,14 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
   })
 }
 
+/** Sites for a map: learned from replays, else the approximate seed list. */
+export function sitesFor(ctx: Ctx, mapKey: string): { site: string; rounds: number }[] {
+  const learned = ctx.db.sites(mapKey)
+  return learned.length ? learned : (SEED_SITES[mapKey] ?? []).map((site) => ({ site, rounds: 0 }))
+}
+
 export function siteRecsFor(ctx: Ctx, mapKey: string, side: Side, perSite = 3): { site: string; recs: Recommendation[] }[] {
-  return ctx.db.sites(mapKey).slice(0, 5).map(({ site }) => ({ site, recs: recsFor(ctx, { mapKey, side, site, topN: perSite }) }))
+  return sitesFor(ctx, mapKey).slice(0, 5).map(({ site }) => ({ site, recs: recsFor(ctx, { mapKey, side, site, topN: perSite }) }))
 }
 
 export function opStats(ctx: Ctx, f: { mine: boolean; mapKey?: string; site?: string; side?: Side; season?: string }): OpStatRow[] {

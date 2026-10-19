@@ -54,7 +54,7 @@ export interface LiveState {
   recommendations: Recommendation[]
   siteRecs: { site: string; recs: Recommendation[] }[]
   rounds: RoundSummary[]
-  source: 'replay' | 'ocr' | 'preview' | null
+  source: 'replay' | 'ocr' | 'preview' | 'simulation' | null
   lobbyError: string | null
   updatedAt: string
 }
@@ -119,6 +119,9 @@ export interface AppStatus {
 export interface ApiOpRow { opKey: string; name: string; side: Side; rounds: number; wins: number; players: number }
 export interface ApiOps { rows: ApiOpRow[]; players: number; seasons: string[]; current: string; lastError: string | null }
 
+export interface SimPerson { profileId: string; name: string; source: 'friend' | 'recent' }
+export interface SimRequest { mapKey: string; side: Side; myTeam: string[]; enemyTeam: string[] } // names or profile ids
+
 export interface AuthResult { ok: boolean; twoFactor?: boolean; error?: string }
 
 export interface UpdateStatus {
@@ -156,6 +159,11 @@ export interface RsApi {
   loginWithUbisoft(): Promise<AuthResult>
   /** Ubisoft Career operator stats: yours ('me') or aggregated over players you've met ('others'). */
   apiOps(f: { who: 'me' | 'others'; season: string; playlist?: string }): Promise<ApiOps>
+  /** Friends (Ubisoft) and players you've met, for the simulator. */
+  simPeople(): Promise<{ people: SimPerson[]; error: string | null }>
+  /** Simulates a match on any map with chosen players (in memory only). */
+  simulateMatch(r: SimRequest): Promise<{ ok: boolean; error?: string; unresolved?: string[] }>
+  stopSimulation(): Promise<void>
   updateStatus(): Promise<UpdateStatus>
   checkForUpdates(): Promise<UpdateStatus>
   installUpdate(): Promise<void>
@@ -165,5 +173,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'updateStatus', 'checkForUpdates', 'installUpdate'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate'>[]

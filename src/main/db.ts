@@ -190,6 +190,10 @@ export function openDb(path: string) {
     findPlayerByName(name: string): string | null {
       return (db.prepare(`SELECT profile_id FROM players WHERE lower(username) = lower(?) ORDER BY last_seen DESC LIMIT 1`).get(name) as { profile_id: string } | undefined)?.profile_id ?? null
     },
+    recentPlayers(limit = 40, excludeProfileId = ''): { profileId: string; name: string }[] {
+      return db.prepare(`SELECT profile_id profileId, username name FROM players WHERE profile_id != ? ORDER BY last_seen DESC LIMIT ?`)
+        .all(excludeProfileId, limit) as never
+    },
     latestMatch(): { matchId: string; lastAt: string } | null {
       return (db.prepare(`SELECT match_id matchId, max(played_at) lastAt FROM rounds GROUP BY match_id ORDER BY lastAt DESC LIMIT 1`).get() as never) ?? null
     },

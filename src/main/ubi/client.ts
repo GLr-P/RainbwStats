@@ -286,6 +286,17 @@ export class UbiClient {
     return out
   }
 
+  /** Your Ubisoft friends list (same call as the Ubisoft account site). */
+  async friends(): Promise<{ profileId: string; name: string; favorite: boolean }[]> {
+    const me = (await this.baseSession()).profileId || this.profileId
+    if (!me) return []
+    const data = await this.get(`/v3/profiles/${me}/friends?locale=en-US`)
+    return arr(isObj(data) ? data['friends'] : null).filter(isObj)
+      .filter((f) => !f['state'] || s(f['state']) === 'Friends')
+      .map((f) => ({ profileId: s(f['pid']), name: s(f['nickname']), favorite: f['isFavorite'] === true }))
+      .filter((f) => f.profileId)
+  }
+
   async basicStats(ids: string[]): Promise<BasicStats[]> {
     const names = 'PClearanceLevel,PPvPTimePlayed,PTotalTimePlayed'
     const out: BasicStats[] = []

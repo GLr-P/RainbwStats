@@ -136,6 +136,7 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     const state = rs.length || this.override
       ? buildLive(this.ctx, rs, { ...this.format, gameRunning: this.gameRunning, cards: this.cards, lobbyError: this.lobbyError, override: this.override, phase: rs.length ? (phase ?? (this.gameRunning ? undefined : 'ended')) : undefined })
       : emptyLive(this.gameRunning)
+    if (this.simulating) state.source = 'simulation'
     this.current = state
     this.emit('state', state)
   }
@@ -171,11 +172,23 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
    *  Uses the real lobby service, so with a Ubisoft login it fetches real ranks. */
   async simulate(stepMs = 4000): Promise<boolean> {
     const latest = this.ctx.db.latestMatch()
-    if (!latest || this.simulating) return false
+    return latest ? this.playRounds(this.ctx.db.roundsOfMatch(latest.matchId), stepMs) : false
+  }
+
+  private stopSim = false
+  /** Stops a running simulation and returns to the normal live state. */
+  stopSimulation(): void { this.stopSim = true }
+
+  /** Plays rounds (recorded or synthetic) into the Live page one at a time. Nothing is stored. */
+  async playRounds(rounds: RoundRecord[], stepMs = 4000): Promise<boolean> {
+    if (!rounds.length || this.simulating) return false
     this.simulating = true
-    const sleep = () => new Promise((r) => setTimeout(r, stepMs))
+    this.stopSim = false
+    const sleep = async () => {
+      for (let t = 0; t < stepMs && !this.stopSim; t += 100) await new Promise((r) => setTimeout(r, Math.min(100, stepMs)))
+      if (this.stopSim) throw new Error('stopped')
+    }
     try {
-      const rounds = this.ctx.db.roundsOfMatch(latest.matchId)
       const first = rounds[0]!
       const me = this.ctx.me() ?? first.recordingProfileId
       const mySide = first.players.find((p) => p.profileId === me || p.profileId === first.recordingProfileId)?.side ?? 'attack'
@@ -186,7 +199,7 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
       this.push([], 'loading')
       await sleep()
       this.override = undefined
-      this.matchId = latest.matchId
+      this.matchId = first.matchId
       for (let i = 1; i <= rounds.length; i++) {
         const subset = rounds.slice(0, i)
         this.push(subset, i < rounds.length ? 'match' : 'ended')
@@ -201,8 +214,12 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
         await sleep()
       }
       return true
+    } catch (e) {
+      if (e instanceof Error && e.message === 'stopped') return false
+      throw e
     } finally {
       this.simulating = false
+      if (this.stopSim) { this.stopSim = false; this.matchId = null; this.cards.clear(); this.resume() }
     }
   }
 

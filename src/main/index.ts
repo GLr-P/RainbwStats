@@ -14,7 +14,9 @@ import { UbiClient, UbiError } from './ubi/client'
 import { LobbyService } from './ubi/lobby'
 import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
-import { apiOps, currentSeason, metaRows, opStats, type Ctx } from './services'
+import { apiOps, currentSeason, mainsOf, metaRows, opStats, sitesFor, type Ctx } from './services'
+import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
+import { baselineFor } from '../shared/recommend'
 import { applyLearned } from './replay/ingest'
 import { findGameDirs, replayRootOf } from './replay/locate'
 import { OcrDetector } from './ocr/detector'
@@ -141,12 +143,56 @@ app.whenReady().then(async () => {
       } catch (e) { return authErr(e) }
     },
     apiOps: async (f) => apiOps(ctx, f, opsync.lastError),
+    simPeople: async () => {
+      let error: string | null = null
+      let friends: { profileId: string; name: string }[] = []
+      if (ubi.canAuth) { try { friends = await ubi.friends() } catch (e) { error = e instanceof Error ? e.message : String(e) } } else error = 'Sign in to load your Ubisoft friends'
+      const me = ctx.me() ?? ''
+      const people = [
+        ...friends.map((f) => ({ ...f, source: 'friend' as const })),
+        ...db.recentPlayers(40, me).filter((p) => !friends.some((f) => f.profileId === p.profileId)).map((p) => ({ ...p, source: 'recent' as const }))
+      ]
+      return { people, error }
+    },
+    simulateMatch: async (req) => {
+      const me = ctx.me()
+      if (!me) return { ok: false, error: 'Sign in (or record one replay) so the app knows which player is you' }
+      // Resolve names → profile ids: friends / met players first, then a Ubisoft name lookup.
+      const known = new Map<string, { profileId: string; name: string }>()
+      if (ubi.canAuth) { try { for (const f of await ubi.friends()) known.set(f.name.toLowerCase(), f) } catch { /* lookup fallback */ } }
+      for (const p of db.recentPlayers(500)) if (!known.has(p.name.toLowerCase())) known.set(p.name.toLowerCase(), p)
+      const unresolved: string[] = []
+      const resolve = async (q: string) => {
+        const s = q.trim()
+        if (!s) return null
+        if (/^[0-9a-f-]{36}$/i.test(s)) return { profileId: s, name: db.playerName(s) ?? s }
+        const hit = known.get(s.toLowerCase())
+        if (hit) return hit
+        try { const p = ubi.canAuth ? await ubi.profileByName(s) : null; if (p) return { profileId: p.profileId, name: p.name } } catch { /* unresolved */ }
+        unresolved.push(s)
+        return null
+      }
+      const team = async (qs: string[]) => (await Promise.all(qs.map(resolve))).filter((p): p is { profileId: string; name: string } => !!p)
+      const [mine, enemy] = await Promise.all([team(req.myTeam), team(req.enemyTeam)])
+      if (!enemy.length) return { ok: false, error: 'Add at least one enemy player', unresolved }
+      // Their real mains (Ubisoft stats) drive the simulated picks.
+      await opsync.syncPlayers([me, ...mine.map((p) => p.profileId), ...enemy.map((p) => p.profileId)])
+      const asSim = (p: { profileId: string; name: string }): SimPlayer => ({ ...p, mains: mainsOf(ctx, p.profileId, 8) })
+      const rounds = buildSyntheticMatch({
+        mapKey: req.mapKey, mySide: req.side, me: asSim({ profileId: me, name: db.playerName(me) ?? 'You' }),
+        myTeam: mine.filter((p) => p.profileId !== me).slice(0, 4).map(asSim), enemyTeam: enemy.slice(0, 5).map(asSim),
+        sites: sitesFor(ctx, req.mapKey).map((s) => s.site), baseline: baselineFor(dataset.get(), req.mapKey)
+      })
+      void engine.playRounds(rounds, 4000)
+      return { ok: true, unresolved }
+    },
+    stopSimulation: async () => engine.stopSimulation(),
     updateStatus: async () => updates.status,
     checkForUpdates: () => updates.check(),
     installUpdate: async () => updates.install(),
     opStats: async (f) => opStats(ctx, f),
     meta: async (f) => metaRows(ctx, f),
-    sites: async (mapKey) => db.sites(mapKey),
+    sites: async (mapKey) => sitesFor(ctx, mapKey),
     seasons: async () => db.seasons(),
     lookupPlayer: async (name) => {
       let id = db.findPlayerByName(name)
@@ -186,6 +232,8 @@ app.whenReady().then(async () => {
         // Screenshot every page at 1440×900 for visual review.
         mkdirSync(shots, { recursive: true })
         win!.setSize(1440, 900)
+        await new Promise((r) => setTimeout(r, 1500))
+        writeFileSync(join(shots, '0-waiting.png'), (await win!.webContents.capturePage()).toPNG())
         await engine.showLatest()
         await new Promise((r) => setTimeout(r, 1500)) // let a busy machine finish rendering the pushed state
         for (const [i, label] of ['Live', 'Roster', 'Ops', 'Meta', 'Players', 'Settings'].entries()) {
@@ -193,11 +241,16 @@ app.whenReady().then(async () => {
           await new Promise((r) => setTimeout(r, 700))
           writeFileSync(join(shots, `${i + 1}-${label.toLowerCase()}.png`), (await win!.webContents.capturePage()).toPNG())
         }
-        // Round-1 state (as OCR would report it) via the simulator's first step.
-        void engine.simulate(60_000)
+        // Full simulator path through the real IPC API: round 1 (as OCR would report it), then mid-match.
         await js(`[...document.querySelectorAll('.nav button')].find(b => b.textContent.trim() === 'Live')?.click()`)
-        await new Promise((r) => setTimeout(r, 900))
+        const started = await js(`window.rs.simulateMatch({ mapKey: 'clubhouse', side: 'defense', myTeam: ['Player02', 'Player03'], enemyTeam: ['Player04', 'Player05', 'Player06', 'NoSuchPlayer'] })`)
+        console.log('SIM', JSON.stringify(started))
+        await new Promise((r) => setTimeout(r, 1500))
         writeFileSync(join(shots, '0-round1.png'), (await win!.webContents.capturePage()).toPNG())
+        await new Promise((r) => setTimeout(r, 10_000))
+        writeFileSync(join(shots, '0-simulation.png'), (await win!.webContents.capturePage()).toPNG())
+        console.log('SIMSTATE', engine.state.source, engine.state.phase, engine.state.rounds.length, engine.state.mapKey)
+        await js('window.rs.stopSimulation()')
       }
       clearTimeout(fail)
       console.log(ok ? `SMOKE OK rounds=${db.counts().rounds}` : 'SMOKE FAIL: app root missing')

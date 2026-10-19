@@ -57,7 +57,8 @@ export function recommend(inp: RecInput): Recommendation[] {
   const myAll = apiAll.rounds > replayAll.rounds ? { ...apiAll, kills: replayAll.kills, deaths: replayAll.deaths } : replayAll
   const priorWr = shrink(myAll.wins, myAll.rounds, 0.5, 20)
   const priorKpr = shrink(myAll.kills, myAll.rounds, 0.7, 20)
-  const k = Math.max(1, inp.minRounds)
+  // Per-operator round outcomes are noisy: a prior worth ~2× "minRounds" keeps 1–3 lucky rounds from dominating.
+  const k = Math.max(1, inp.minRounds) * 2
 
   // Crowd totals give pick-rate denominators (player-rounds on this side).
   const crowdScope = inp.site && inp.crowd.site ? inp.crowd.site : inp.mapKey && inp.crowd.map ? inp.crowd.map : inp.crowd.overall
