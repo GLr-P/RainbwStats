@@ -6,7 +6,7 @@ import type { RoundRecord, Side } from '../../shared/types'
 
 export const emptyLive = (gameRunning = false): LiveState => ({
   phase: gameRunning ? 'game' : 'idle', gameRunning, matchId: null, mapKey: null, side: null, site: null, nextRound: 1,
-  score: [0, 0], myTeam: [], enemyTeam: [], recommendations: [], siteRecs: [], rounds: [], source: null, lobbyError: null,
+  score: [0, 0], myTeam: [], enemyTeam: [], recommendations: [], otherSide: null, siteRecs: [], rounds: [], source: null, lobbyError: null,
   updatedAt: new Date().toISOString()
 })
 
@@ -87,6 +87,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
     myTeam: players.filter((p) => p.mine).sort(order).map(strip),
     enemyTeam: players.filter((p) => !p.mine).sort(order).map(strip),
     recommendations: recsFor(ctx, { mapKey, side, site, teammateOps }),
+    otherSide: otherSidePicks(ctx, mapKey, side),
     siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side),
     rounds: summaries,
     source: o.override ? 'ocr' : 'replay',
@@ -104,7 +105,13 @@ function overrideOnly(ctx: Ctx, o: BuildOpts): Partial<LiveState> {
   return {
     phase: o.phase ?? 'loading', mapKey, side, site,
     recommendations: recsFor(ctx, { mapKey, side, site }),
+    otherSide: otherSidePicks(ctx, mapKey, side),
     siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side),
     source: o.phase === 'idle' ? 'preview' : 'ocr'
   }
+}
+
+function otherSidePicks(ctx: Ctx, mapKey: string, side: Side): LiveState['otherSide'] {
+  const other: Side = side === 'attack' ? 'defense' : 'attack'
+  return { side: other, recs: recsFor(ctx, { mapKey, side: other, site: null, topN: 3 }) }
 }

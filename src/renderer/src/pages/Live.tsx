@@ -60,6 +60,12 @@ function Picks({ s }: { s: LiveState }) {
           {s.recommendations.map((r, i) => <Pick key={r.operatorId} r={r} i={i} />)}
         </div>
       )}
+      {s.otherSide && s.otherSide.recs.length > 0 && (
+        <div className="row small" style={{ marginTop: 10, gap: 8 }}>
+          <span className="muted">If you're on</span><SideTag side={s.otherSide.side} />
+          <span style={{ fontFamily: 'var(--head)', fontWeight: 700, fontSize: '1rem', textTransform: 'uppercase' }}>{s.otherSide.recs.map((r) => r.name).join(' · ')}</span>
+        </div>
+      )}
     </div>
   )
 }

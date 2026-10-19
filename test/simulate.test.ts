@@ -69,3 +69,42 @@ describe('match simulator', () => {
     expect(db.counts().rounds).toBe(0)
   })
 })
+
+describe('simulation controls', () => {
+  const mk = () => {
+    const db = openDb(':memory:')
+    const lobby = { cards: async () => ({ cards: [] }) } as unknown as LobbyService
+    const engine = new LiveEngine({ db, settings: () => DEFAULT_SETTINGS, dataset: () => BUNDLED_DATASET, me: () => p(1).profileId }, lobby, () => null)
+    return engine
+  }
+  it('Stop works mid-simulation and also clears a finished one', async () => {
+    const engine = mk()
+    const run = engine.playRounds(buildSyntheticMatch(spec(5)), 1000)
+    await new Promise((r) => setTimeout(r, 150))
+    engine.stopSimulation()
+    expect(await run).toBe(false)
+    expect(engine.state.source).not.toBe('simulation')
+    expect(engine.state.matchId).toBeNull()
+    // Finished simulation stays on screen until Stop, which must still clear it.
+    await engine.playRounds(buildSyntheticMatch(spec(6)), 0)
+    expect(engine.state.source).toBe('simulation')
+    engine.stopSimulation()
+    expect(engine.state.source).not.toBe('simulation')
+  })
+  it('starting a new simulation replaces a running one', async () => {
+    const engine = mk()
+    const first = engine.playRounds(buildSyntheticMatch(spec(7)), 1000)
+    await new Promise((r) => setTimeout(r, 150))
+    const second = engine.playRounds(buildSyntheticMatch({ ...spec(8), mapKey: 'bank', sites: SEED_SITES['bank']! }), 0)
+    expect(await first).toBe(false)
+    expect(await second).toBe(true)
+    expect(engine.state.mapKey).toBe('bank')
+  })
+  it('always offers the other side as a fallback', async () => {
+    const engine = mk()
+    await engine.playRounds(buildSyntheticMatch(spec(9)), 0)
+    const s = engine.state
+    expect(s.otherSide?.side).toBe(s.side === 'attack' ? 'defense' : 'attack')
+    expect(s.otherSide?.recs.every((r) => operatorByKey(r.name.toLowerCase().replace(/[^a-z0-9]/g, ''))?.side === s.otherSide?.side)).toBe(true)
+  })
+})

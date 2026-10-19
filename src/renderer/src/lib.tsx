@@ -57,7 +57,7 @@ export function RankBadge({ rank, rp }: { rank: number; rp?: number }) {
     <span className="rankb">
       <i style={{ background: rankColor(rank) }} />
       {rankName(rank)}
-      {rp !== undefined && <span className="faint num">{rp}</span>}
+      {rp !== undefined && rank > 0 && <span className="faint num">{rp}</span>}
     </span>
   )
 }

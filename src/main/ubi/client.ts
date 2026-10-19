@@ -291,10 +291,13 @@ export class UbiClient {
     const me = (await this.baseSession()).profileId || this.profileId
     if (!me) return []
     const data = await this.get(`/v3/profiles/${me}/friends?locale=en-US`)
-    return arr(isObj(data) ? data['friends'] : null).filter(isObj)
+    const friends = arr(isObj(data) ? data['friends'] : null).filter(isObj)
       .filter((f) => !f['state'] || s(f['state']) === 'Friends')
       .map((f) => ({ profileId: s(f['pid']), name: s(f['nickname']), favorite: f['isFavorite'] === true }))
       .filter((f) => f.profileId)
+    // "nickname" is your private alias for the friend (usually empty): use their real username.
+    const names = new Map((await this.profilesByIds(friends.map((f) => f.profileId)).catch(() => [])).map((p) => [p.profileId, p.name]))
+    return friends.map((f) => ({ ...f, name: names.get(f.profileId) || f.name || 'Unknown' }))
   }
 
   async basicStats(ids: string[]): Promise<BasicStats[]> {

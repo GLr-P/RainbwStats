@@ -47,9 +47,10 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
   get state(): LiveState { return this.current }
   get watching(): boolean { return this.watcher !== null }
   /** OCR gate: only look at the screen while the game runs and round-1 info is missing. */
-  get needsRoundOneInfo(): boolean {
-    const s = this.current
-    return this.gameRunning && s.phase !== 'match' && !(s.phase === 'loading' && s.mapKey && s.side)
+  get needsRoundInfo(): boolean {
+    // Between a round ending (new replay file clears the override) and the next operator-select
+    // screen being read. Idle during gameplay once the side is known.
+    return this.gameRunning && !this.simulating && !this.override?.side
   }
 
   start(): void {
@@ -151,12 +152,18 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     this.push()
   }
 
-  /** Round-1 info from OCR (Phase 6). Starts a fresh "loading" state for a new match. */
-  setDetected(d: { mapKey?: string; side?: Side; site?: string | null }, newMatch: boolean): void {
+  /** Map/side/site read from the screen (OCR). Before a match it starts a fresh "loading" state;
+   *  during a match it only updates side/site for the upcoming round (a misread map is ignored). */
+  setDetected(found: { mapKey?: string; side?: Side; site?: string | null }, newMatch: boolean): void {
+    if (this.simulating) return
     const p = this.current.phase
+    const d = p === 'match' ? { side: found.side, site: found.site } : found
+    if (p === 'match') newMatch = false
     if (newMatch || (d.mapKey && (p === 'ended' || p === 'game' || p === 'idle'))) { this.matchId = null; this.cards.clear(); this.override = undefined }
-    if (!this.matchId && !d.mapKey && !this.override?.mapKey) return // side alone is meaningless before a map
-    this.override = { ...this.override, ...d }
+    // Side/site without a map only count during a match (menus also show ATTACK/DEFENSE labels).
+    if (!d.mapKey && !(p === 'match' || p === 'loading')) return
+    if (!this.matchId && !d.mapKey && !this.override?.mapKey) return
+    this.override = { ...this.override, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined)) }
     this.push()
   }
 
@@ -175,52 +182,58 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     return latest ? this.playRounds(this.ctx.db.roundsOfMatch(latest.matchId), stepMs) : false
   }
 
-  private stopSim = false
-  /** Stops a running simulation and returns to the normal live state. */
-  stopSimulation(): void { this.stopSim = true }
-
-  /** Plays rounds (recorded or synthetic) into the Live page one at a time. Nothing is stored. */
-  async playRounds(rounds: RoundRecord[], stepMs = 4000): Promise<boolean> {
-    if (!rounds.length || this.simulating) return false
-    this.simulating = true
-    this.stopSim = false
-    const sleep = async () => {
-      for (let t = 0; t < stepMs && !this.stopSim; t += 100) await new Promise((r) => setTimeout(r, Math.min(100, stepMs)))
-      if (this.stopSim) throw new Error('stopped')
-    }
-    try {
-      const first = rounds[0]!
-      const me = this.ctx.me() ?? first.recordingProfileId
-      const mySide = first.players.find((p) => p.profileId === me || p.profileId === first.recordingProfileId)?.side ?? 'attack'
-      // Round 1: what OCR would report at operator select.
+  private simToken = 0
+  /** Stops a running simulation (or clears a finished one) and returns to the normal live state. */
+  stopSimulation(): void {
+    this.simToken++
+    if (this.simulating || this.current.source === 'simulation') {
+      this.simulating = false
+      this.override = undefined
       this.matchId = null
       this.cards.clear()
-      this.override = { mapKey: first.mapKey, side: mySide }
-      this.push([], 'loading')
-      await sleep()
-      this.override = undefined
-      this.matchId = first.matchId
-      for (let i = 1; i <= rounds.length; i++) {
-        const subset = rounds.slice(0, i)
-        this.push(subset, i < rounds.length ? 'match' : 'ended')
-        if (i === 1) {
-          const names = Object.fromEntries(rounds.flatMap((r) => r.players).map((p) => [p.profileId, p.username]))
-          const { cards, error } = await this.lobby.cards(Object.keys(names), names)
-          for (const c of cards) this.cards.set(c.profileId, c)
-          this.lobbyError = error ?? null
-          this.push(subset, 'match')
-          if (this.onLobby) { await this.onLobby(Object.keys(names)).catch(() => undefined); this.push(subset, 'match') }
-        }
-        await sleep()
-      }
-      return true
-    } catch (e) {
-      if (e instanceof Error && e.message === 'stopped') return false
-      throw e
-    } finally {
-      this.simulating = false
-      if (this.stopSim) { this.stopSim = false; this.matchId = null; this.cards.clear(); this.resume() }
+      this.resume()
     }
+  }
+
+  /** Plays rounds (recorded or synthetic) into the Live page one at a time. Nothing is stored.
+   *  Starting a new playback cancels any running one; Stop cancels immediately. */
+  async playRounds(rounds: RoundRecord[], stepMs = 4000): Promise<boolean> {
+    if (!rounds.length) return false
+    const token = ++this.simToken
+    const alive = () => token === this.simToken
+    this.simulating = true
+    const sleep = async () => {
+      for (let t = 0; t < stepMs && alive(); t += 100) await new Promise((r) => setTimeout(r, Math.min(100, stepMs)))
+      return alive()
+    }
+    const first = rounds[0]!
+    const me = this.ctx.me() ?? first.recordingProfileId
+    const mySide = first.players.find((p) => p.profileId === me || p.profileId === first.recordingProfileId)?.side ?? 'attack'
+    // Round 1: what OCR would report at operator select.
+    this.matchId = null
+    this.cards.clear()
+    this.override = { mapKey: first.mapKey, side: mySide }
+    this.push([], 'loading')
+    if (!(await sleep())) return false
+    this.override = undefined
+    this.matchId = first.matchId
+    for (let i = 1; i <= rounds.length; i++) {
+      const subset = rounds.slice(0, i)
+      this.push(subset, i < rounds.length ? 'match' : 'ended')
+      if (i === 1) {
+        const names = Object.fromEntries(rounds.flatMap((r) => r.players).map((p) => [p.profileId, p.username]))
+        const { cards, error } = await this.lobby.cards(Object.keys(names), names)
+        if (!alive()) return false
+        for (const c of cards) this.cards.set(c.profileId, c)
+        this.lobbyError = error ?? null
+        this.push(subset, 'match')
+        if (this.onLobby) { await this.onLobby(Object.keys(names)).catch(() => undefined); if (!alive()) return false; this.push(subset, 'match') }
+      }
+      if (i < rounds.length && !(await sleep())) return false
+    }
+    // Finished: the result stays on screen (source "simulation") until Stop or the next real event.
+    if (alive()) this.simulating = false
+    return true
   }
 
   /** Recompute recommendations after settings/roster changes. */

@@ -39,10 +39,15 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
   const maps = allMaps().map((m) => ({ key: m.key, name: norm(m.name), short: norm(m.name.split(' ')[0]!) }))
   const out: Detection = {}
 
+  // Siege shows map and side as short standalone labels. Words inside longer lines (chat, menus,
+  // code on another window: "border: 1px solid") must never count.
+  const words = (l: string) => l.split(' ').length
+
   // Map: full names first ("THEME PARK"), then distinctive first words ("KAFE", "NIGHTHAVEN").
   let mapScore = 0
   for (const l of L) {
     for (const m of maps) {
+      if (words(l) > words(m.name) + 1) continue
       const full = bestMatch(l, [m.name])?.score ?? 0
       const short = m.short.length >= 5 ? (bestMatch(l, [m.short])?.score ?? 0) - 0.05 : 0
       const sc = Math.max(full, short)
@@ -50,10 +55,14 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
     }
   }
 
+  // Side: standalone label only; a frame showing both ATTACK and DEFENSE labels is ambiguous.
+  const sides = new Set<Side>()
   for (const l of L) {
+    if (words(l) > 2) continue
     const m = bestMatch(l, Object.keys(SIDE_WORDS))
-    if (m && m.score >= 0.85 && l.split(' ').length <= 4) { out.side = SIDE_WORDS[m.word]; break }
+    if (m && m.score >= 0.85) sides.add(SIDE_WORDS[m.word]!)
   }
+  if (sides.size === 1) out.side = [...sides][0]
 
   if (out.mapKey) {
     // Replay site names look like "2F Meeting Room, 2F Executive Office"; match either half.

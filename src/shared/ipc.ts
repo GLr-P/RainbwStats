@@ -52,6 +52,8 @@ export interface LiveState {
   myTeam: LivePlayer[]
   enemyTeam: LivePlayer[]
   recommendations: Recommendation[]
+  /** Top picks for the other side, in case the predicted side is wrong. */
+  otherSide: { side: Side; recs: Recommendation[] } | null
   siteRecs: { site: string; recs: Recommendation[] }[]
   rounds: RoundSummary[]
   source: 'replay' | 'ocr' | 'preview' | 'simulation' | null

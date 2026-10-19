@@ -23,3 +23,13 @@ describe('ocr matcher', () => {
     expect(similarity('CLUBHOUSE', 'CLUBH0USE')).toBeGreaterThan(0.85)
   })
 })
+
+describe('ocr matcher: real-world false positives', () => {
+  it('ignores map/side words inside longer lines (code, chat, menus)', () => {
+    expect(detect(['border: 1px solid var(--line);', '.panel { border-left: 3px solid }'])).toEqual({})
+    expect(detect(['Smoke recommendation (menu text like "DEFENDERS"', 'on attack it recommended'])).toEqual({})
+  })
+  it('treats a frame showing both ATTACK and DEFENSE labels as ambiguous', () => {
+    expect(detect(['CLUBHOUSE', 'ATTACKERS', 'DEFENDERS'])).toEqual({ mapKey: 'clubhouse' })
+  })
+})

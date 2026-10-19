@@ -6,11 +6,14 @@ import { join } from 'node:path'
 import { OcrWorker } from './worker'
 import { detect, type Detection } from './matcher'
 
+const GAME_PROCESS = /^RainbowSix/i
+
 export class OcrDetector {
   private timer: NodeJS.Timeout | null = null
   private worker = new OcrWorker()
   private busy = false
   private lastMap: string | undefined
+  private pending: string | null = null
   private readonly onDetect: (d: Detection, newMatch: boolean) => void
   /** Engine-provided gate: true when the game runs and round info is missing. */
   shouldRun: () => boolean = () => true
@@ -36,15 +39,22 @@ export class OcrDetector {
     try {
       const d = screen.getPrimaryDisplay()
       const width = Math.min(1600, d.size.width)
+      // Only while Siege is the foreground app: never read other apps (a code editor once "showed"
+      // map Border). Checked via the OCR worker, so it works in fullscreen, borderless and windowed.
+      if (!GAME_PROCESS.test(await this.worker.foreground())) { this.pending = null; return }
       const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width, height: Math.round((width * d.size.height) / d.size.width) } })
       const src = sources.find((s) => s.display_id === String(d.id)) ?? sources[0]
-      if (!src || src.thumbnail.isEmpty()) return
+      if (!src || src.thumbnail.isEmpty()) { this.pending = null; return }
       const dir = this.debugDir ?? join(app.getPath('temp'), 'rainbwstats-ocr')
       mkdirSync(dir, { recursive: true })
       const file = join(dir, this.debugDir ? `frame-${Date.now()}.png` : 'frame.png')
       writeFileSync(file, src.thumbnail.toPNG())
       const found = detect(await this.worker.recognize(file), this.sitesByMap)
-      if (found.mapKey || found.side) {
+      // Require the same reading in two consecutive frames before acting on it.
+      const sig = `${found.mapKey ?? ''}|${found.side ?? ''}|${found.site ?? ''}`
+      const confirmed = sig !== '||' && sig === this.pending
+      this.pending = sig === '||' ? null : sig
+      if (confirmed) {
         const newMatch = !!found.mapKey && found.mapKey !== this.lastMap
         if (found.mapKey) this.lastMap = found.mapKey
         this.onDetect(found, newMatch)

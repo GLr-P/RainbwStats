@@ -26,7 +26,10 @@ import { API_METHODS, type AppStatus, type AuthResult, type RsApi, type Settings
 
 const isSmoke = process.argv.includes('--smoke')
 // Smoke/screenshot runs get their own profile so they never collide with an installed copy.
-if (isSmoke) app.setPath('userData', join(app.getPath('temp'), `rainbwstats-smoke-profile-${process.pid}`))
+// --data-dir=<copy of a profile> (test runs against real data). Smoke runs never use the live profile.
+const dataDirArg = process.argv.find((a) => a.startsWith('--data-dir='))?.slice(11)
+if (dataDirArg) app.setPath('userData', dataDirArg)
+else if (isSmoke) app.setPath('userData', join(app.getPath('temp'), `rainbwstats-smoke-profile-${process.pid}`))
 else if (!app.requestSingleInstanceLock()) app.quit()
 
 let win: BrowserWindow | null = null
@@ -58,7 +61,7 @@ app.whenReady().then(async () => {
   }
   // --demo=<rounds.json>: isolated profile seeded with scrubbed sample rounds (for public screenshots).
   const demo = process.argv.find((a) => a.startsWith('--demo='))?.slice(7)
-  const dataDir = demo ? join(app.getPath('temp'), `rainbwstats-demo-${Date.now()}`) : isSmoke ? join(app.getPath('temp'), 'rainbwstats-smoke') : app.getPath('userData')
+  const dataDir = dataDirArg ?? (demo ? join(app.getPath('temp'), `rainbwstats-demo-${Date.now()}`) : isSmoke ? join(app.getPath('temp'), 'rainbwstats-smoke') : app.getPath('userData'))
   mkdirSync(dataDir, { recursive: true })
   const db = openDb(join(dataDir, 'rainbwstats.db'))
   applyLearned(db)
@@ -78,7 +81,7 @@ app.whenReady().then(async () => {
   /** Your Ubisoft operator history (all seasons; past seasons fetched once). */
   const syncMine = () => { const me = ctx.me(); if (me && ubi.canAuth) void opsync.syncMine(me).then((ok) => ok && engine.refresh()) }
   const ocr = new OcrDetector((d, fresh) => engine.setDetected(d, fresh))
-  ocr.shouldRun = () => engine.needsRoundOneInfo
+  ocr.shouldRun = () => engine.needsRoundInfo
   ocr.sitesByMap = (k) => db.sites(k).map((s) => s.site)
 
   win = createWindow(settings.get())
@@ -272,7 +275,10 @@ app.whenReady().then(async () => {
         writeFileSync(join(shots, '0-round1.png'), (await win!.webContents.capturePage()).toPNG())
         await new Promise((r) => setTimeout(r, 10_000))
         writeFileSync(join(shots, '0-simulation.png'), (await win!.webContents.capturePage()).toPNG())
-        console.log('SIMSTATE', engine.state.source, engine.state.phase, engine.state.rounds.length, engine.state.mapKey)
+        const lobbyPlayers = [...engine.state.myTeam, ...engine.state.enemyTeam]
+        console.log('SIMSTATE', engine.state.source, engine.state.phase, engine.state.rounds.length, engine.state.mapKey,
+          `players=${lobbyPlayers.length} ranked=${lobbyPlayers.filter((x) => x.card?.ranked).length} withMains=${lobbyPlayers.filter((x) => x.mains.length).length}`,
+          `side=${engine.state.side} picks=${engine.state.recommendations.map((r) => r.name).join('/')} other=${engine.state.otherSide?.recs.map((r) => r.name).join('/')}`)
         await js('window.rs.stopSimulation()')
       }
       clearTimeout(fail)
