@@ -55,7 +55,7 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     void this.tick()
     this.poll = setInterval(() => void this.tick(), 4000)
     // Backfill existing replays without blocking startup paint.
-    setTimeout(() => this.rescan(), 50)
+    setTimeout(() => void this.rescan(), 50)
   }
 
   stop(): void {
@@ -74,12 +74,17 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     } catch { this.watcher = null }
   }
 
-  rescan(): number {
-    const root = this.root()
-    const n = root ? ingestReplayRoot(this.ctx.db, root) : 0
-    if (n) { this.lastIngest = new Date().toISOString(); this.emit('ingested', n) }
-    this.resume()
-    return n
+  private scanning: Promise<number> | null = null
+  /** Imports any replays not yet in the DB (deduplicated if called while running). */
+  rescan(): Promise<number> {
+    this.scanning ??= (async () => {
+      const root = this.root()
+      const n = root ? await ingestReplayRoot(this.ctx.db, root) : 0
+      if (n) { this.lastIngest = new Date().toISOString(); this.emit('ingested', n) }
+      this.resume()
+      return n
+    })().finally(() => { this.scanning = null })
+    return this.scanning
   }
 
   /** On startup / rescan: show the latest match if it is recent. */
@@ -133,6 +138,8 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
   }
 
   private async tick(): Promise<void> {
+    // MatchReplay may only appear after the user enables replays in game: start watching then.
+    if (!this.watcher) { const root = this.root(); if (root && existsSync(root)) { this.restartWatcher(); void this.rescan() } }
     const running = await isGameRunning()
     if (running === this.gameRunning) return
     this.gameRunning = running

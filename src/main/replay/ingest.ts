@@ -31,12 +31,18 @@ export function ingestFile(db: Db, path: string, force = false): RoundRecord | n
 export const listRoundFiles = (matchDir: string): string[] =>
   readdirSync(matchDir).filter((f) => /\.rec$/i.test(f)).sort().map((f) => join(matchDir, f))
 
-/** Ingests every Match-* folder under a MatchReplay root. Returns number of new rounds stored. */
-export function ingestReplayRoot(db: Db, root: string): number {
+/** Ingests every Match-* folder under a MatchReplay root. Returns number of new rounds stored.
+ *  Async and yields between files so a large first import never freezes the UI. */
+export async function ingestReplayRoot(db: Db, root: string): Promise<number> {
   let n = 0
   let dirs: string[] = []
   try { dirs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(root, d.name)) } catch { return 0 }
-  for (const dir of dirs) for (const f of listRoundFiles(dir)) if (ingestFile(db, f)) n++
+  for (const dir of dirs) {
+    for (const f of listRoundFiles(dir)) {
+      if (ingestFile(db, f)) n++
+      await new Promise((r) => setImmediate(r))
+    }
+  }
   return n
 }
 

@@ -121,7 +121,7 @@ function TeamTable({ title, players }: { title: string; players: LivePlayer[] })
                 <td className="r num">{se ? ratio(se.kills, se.deaths) : '–'}</td>
                 <td className="r num">{games ? pct(se!.wins / games) : '–'}</td>
                 <td className="r num">{c?.level ?? '–'}</td>
-                <td><div className="opchips">{p.ops.map((o) => <OpChip key={o.round} id={o.operatorId} title={`R${o.round} ${o.won ? 'won' : 'lost'}`} />)}</div></td>
+                <td className="ops"><div className="opchips">{p.ops.map((o) => <OpChip key={o.round} id={o.operatorId} title={`R${o.round} ${o.won ? 'won' : 'lost'}`} />)}</div></td>
               </tr>
             )
           })}

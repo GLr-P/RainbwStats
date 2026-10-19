@@ -7,7 +7,9 @@ Ad-free, open-source Rainbow Six Siege X companion for Windows.
 - **Operator database**: pick rate and win rate per map, site, side and patch, built from real match replays.
 - **Your history**: operator stats by map, site and side, plus rank snapshots over time.
 
-> Status: early development. See [PLAN.md](PLAN.md) for the roadmap.
+**[Download](https://github.com/GLr-P/RainbwStats/releases/latest)** · **[Website](https://glr-p.github.io/RainbwStats/)** · Status: beta. See [PLAN.md](PLAN.md) for the roadmap.
+
+![Live page](site/img/1-live.png)
 
 ## How it gets data (and why it's safe)
 
@@ -36,6 +38,8 @@ npm run dev      # run the app with hot reload
 npm run check    # typecheck + tests
 npm run smoke    # build + launch + verify the window renders
 npm run dist     # build Windows installer into release/
+npm run shots    # screenshots of every page with scrubbed sample data → site/img
+npm run export-dataset  # write the bundled dataset to site/data/meta/latest.json
 ```
 
 MIT licensed.

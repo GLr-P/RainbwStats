@@ -94,7 +94,8 @@ tr.me td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .team-h { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; }
 .rankb { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 .rankb i { width: 10px; height: 10px; transform: rotate(45deg); display: inline-block; }
-.opchips { display: flex; gap: 4px; }
+.opchips { display: flex; gap: 4px; flex-wrap: wrap; }
+td.ops { white-space: normal; min-width: 180px; }
 .opchip { font-size: 0.72rem; font-weight: 600; padding: 1px 6px; background: var(--surface-2); border-bottom: 2px solid var(--line); text-transform: uppercase; }
 .opchip.attack { border-bottom-color: var(--attack); }
 .opchip.defense { border-bottom-color: var(--defense); }

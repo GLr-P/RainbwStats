@@ -96,7 +96,7 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 - DoD: parses the local Y11S3 replay (6 rounds) with correct map/site/ops/winner; ingest twice = no dupes; parse < 100 ms per round.
 
 ### Phase 2 — Ubisoft API client
-- [~] Login (email/password, safeStorage-encrypted), 2FA code flow, ticket cache + background refresh
+- [x] Login (email/password, safeStorage-encrypted), 2FA code flow, ticket cache + background refresh
 - [x] Profiles by name / by IDs (batched), full_profiles (rank/RP/max/W-L/K-D) batched, level/playtime
 - [x] Response guards (never crash on shape change), 429 backoff, 10-min per-player cache
 - [x] Rank snapshot on every fetch → history
@@ -111,29 +111,29 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 - DoD: unit tests cover cold start (no data), roster filtering, bans, site-specific vs map fallback, determinism.
 
 ### Phase 4 — UI
-- [ ] R6-styled theme (dark, angular cuts, condensed caps type, attack orange / defense blue), CSS-variable tokens
-- [ ] **Live page** (single glanceable screen): map/side/site header · your top-3 picks with reasons · both teams (rank, RP, K/D, W/L, level, ops this match) · round timeline
-- [ ] Roster sidebar (toggle the ops you're willing to play, quick presets)
-- [ ] Operators page (your stats by op × map × site × side, per patch)
-- [ ] Players page (lookup, rank history, encounters)
-- [ ] Meta page (pick/win by map/site/side, per patch, sample sizes)
-- [ ] Settings: theme colors, density, font scale, panels on/off, weights, paths, always-on-top, compact mode
+- [x] R6-styled theme (dark, angular cuts, condensed caps type, attack orange / defense blue), CSS-variable tokens
+- [x] **Live page** (single glanceable screen): map/side/site header · your top-3 picks with reasons · both teams (rank, RP, K/D, W/L, level, ops this match) · round timeline
+- [x] Roster sidebar (toggle the ops you're willing to play, quick presets)
+- [x] Operators page (your stats by op × map × site × side, per patch)
+- [x] Players page (lookup, rank history, encounters)
+- [x] Meta page (pick/win by map/site/side, per patch, sample sizes)
+- [x] Settings: theme colors, density, font scale, panels on/off, weights, paths, always-on-top, compact mode
 - DoD: every page renders with empty DB and with fixture data; readable at 1080p from arm's length (min 14px body).
 
 ### Phase 5 — Live engine (zero interaction)
-- [ ] Detect Siege process; watch MatchReplay; state machine; auto-switch to Live page
-- [ ] On new round file: header parse → lobby fetch → recompute recs → push to UI
-- [ ] Tray icon, launch-at-login option, single instance
+- [x] Detect Siege process; watch MatchReplay; state machine; auto-switch to Live page
+- [x] On new round file: header parse → lobby fetch → recompute recs → push to UI
+- [x] Tray icon, launch-at-login option, single instance
 - DoD: simulated replay drop (copy fixture rounds in with delays) drives the full UI flow within budget.
 
 ### Phase 6 — Round-1 OCR (opt-in)
-- [ ] Persistent Windows OCR worker, desktopCapturer frames, fuzzy vocab (maps, ATTACK/DEFENSE, sites)
-- [ ] Debug capture mode (saves frames so the user can send failing screenshots)
+- [x] Persistent Windows OCR worker, desktopCapturer frames, fuzzy vocab (maps, ATTACK/DEFENSE, sites)
+- [~] Debug capture mode (OcrDetector.debugDir exists; no settings toggle yet)
 - DoD: matcher unit tests; manual validation in a real match (user step).
 
 ### Phase 7 — Ship
-- [ ] electron-builder NSIS + portable, release workflow on tag, electron-updater from GitHub Releases
-- [ ] GitHub Pages: landing page + hosted meta dataset; app pulls dataset with disk cache
+- [x] electron-builder NSIS + portable, release workflow on tag, electron-updater from GitHub Releases
+- [x] GitHub Pages: landing page + hosted meta dataset; app pulls dataset with disk cache
 - DoD: tagged release downloads + installs + auto-detects replay folder on a clean profile.
 
 ### Phase 8 — Global crowd database (the "pick/ban/WR for everyone" feature)
@@ -175,8 +175,14 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 | 2026-10-19 | 1 | check ✅ 13 tests. Local Y11S3 replay: 6/6 rounds parsed in 33–79 ms (header-only ~ same; zstd dominates). Found new Plane world ID 439976373310. Rauora confirmed attacker. Winner from score delta, one winner per round ✅. Ingest idempotent ✅. Game dir auto-detected (Steam) ✅ |
 | 2026-10-19 | 2 | check ✅ 22 tests: login, 2FA, remember-me refresh (no password resend), 401 retry, 429 typed error, junk-shape tolerance, lobby batching + cache + rank snapshots, logged-out degradation. Real login untested (user check) |
 | 2026-10-19 | 3 | check ✅ 30 tests. Tests caught 2 real flaws: tiny samples beating reliable ones (→ lower-confidence-bound ranking) and saturating pick-rate term (→ log-scaled, capped). Cold start, roster/bans, site lift, crowd>baseline, team fit, determinism covered |
+| 2026-10-19 | 5 | check ✅ 35 tests. Simulated replay drops (real Y11S3 files copied into a watched dir): file → LiveState in **181–262 ms** (budget 300). Side prediction + match-end (incl. OT) tested |
+| 2026-10-19 | 6 | Windows OCR worker verified on this PC: boot 0.4 s, **24 ms/frame**, read CLUBHOUSE/DEFENSE/site correctly from a rendered frame. Matcher tests incl. OCR noise + no false positives. Real in-game frames untested (user check) |
+| 2026-10-19 | 4 | Screenshot review of every page found + fixed: misleading side tags, stale header side after match end, inflated pick rate in 3v3 (now exact team-rounds), baseline shown as win %, op chips overflowing, all-ops score penalty (now neutral 50 for no data) |
+| 2026-10-19 | 7 | NSIS + portable built locally; packaged exe passes smoke (node:sqlite, updater, tray in asar). Self-review found + fixed: first-run import blocking UI (now async), watcher never starting if MatchReplay created later. Pages enabled. CI/Release workflows written; GitHub Actions degraded today so runs queued |
 
 ## 7. User checks (things I can't verify myself)
 - [ ] Enable Match Replay in Siege settings (if not already) so every match is recorded
 - [ ] Log in with a Ubisoft account in Settings (Phase 2)
 - [ ] Play one match with the app open and report what the Live page showed (Phase 5/6)
+- [ ] Optional: enable OCR in Settings and check it reads the map before round 1 (borderless window mode is most reliable)
+- [ ] For Phase 8 (global database): create a free Cloudflare account and run `npx wrangler login` once

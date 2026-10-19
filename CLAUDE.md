@@ -15,6 +15,11 @@ boxes and add a log row when a phase finishes.
 - `npm run smoke`: build + launch Electron + assert the UI mounted (prints `SMOKE OK`)
 - `npm run dev`: dev app. Scripts go through `scripts/run.mjs` because VS Code sets `ELECTRON_RUN_AS_NODE=1`
 
+## Gotchas
+- The Bash tool collapses backslashes and breaks on backticks in heredocs / node -e. Use Write/Edit for code containing either
+- Release: bump version in package.json → tag vX.Y.Z → push tag (release.yml builds + publishes). Fallback: `npm run dist` + `gh release create` with release/*.exe, *.blockmap, latest.yml
+- Visual check: `npm run shots` then look at site/img/*.png (demo data, safe to publish)
+
 ## Conventions
 - SQLite via built-in `node:sqlite` (no native modules). Never add native deps without a strong reason
 - Unknown operator/map IDs from replays must never throw. Map them to `Unknown(<id>)`

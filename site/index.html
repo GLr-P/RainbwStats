@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RainbwStats</title>
+  <meta name="description" content="Free, ad-free Rainbow Six Siege companion for Windows: live lobby ranks, operator stats by map and site, and picks tailored to your roster." />
+  <link rel="icon" href="img/icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --bg: #0b0e13; --surface: #141922; --line: #262f3f; --text: #e6e9ef; --muted: #8a93a3; --accent: #e8b23a; --attack: #d9761c; --defense: #4a93e0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 Inter, 'Segoe UI', sans-serif; }
+    h1, h2, h3 { font-family: Rajdhani, 'Segoe UI', sans-serif; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 .4em; }
+    a { color: var(--accent); }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    header { padding: 64px 0 32px; }
+    header h1 { font-size: clamp(2.4rem, 7vw, 4.2rem); line-height: 1; }
+    header h1 span { color: var(--accent); }
+    .lead { font-size: 1.2rem; color: var(--muted); max-width: 720px; }
+    .cta { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0 8px; }
+    .btn { display: inline-block; padding: 12px 22px; font-family: Rajdhani, sans-serif; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; text-decoration: none; border: 1px solid var(--line); color: var(--text); clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
+    .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); }
+    .small { font-size: .85rem; color: var(--muted); }
+    .shot { width: 100%; border: 1px solid var(--line); display: block; margin: 24px 0 6px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 40px 0; }
+    .card { background: var(--surface); border: 1px solid var(--line); padding: 18px; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
+    .card h3 { font-size: 1.2rem; }
+    .card p { margin: 0; color: var(--muted); }
+    .tag { font-family: Rajdhani, sans-serif; font-weight: 700; padding: 1px 8px; color: #fff; }
+    .atk { background: var(--attack); } .def { background: var(--defense); }
+    section { margin: 48px 0; }
+    ol li { margin-bottom: 6px; }
+    .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+    .shots img { width: 100%; border: 1px solid var(--line); }
+    footer { border-top: 1px solid var(--line); padding: 24px 0 48px; color: var(--muted); font-size: .85rem; }
+    code { background: var(--surface); padding: 1px 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Rainbw<span>Stats</span></h1>
+      <p class="lead">A free, open-source Rainbow Six Siege companion for Windows. No ads and no account system. Open it on your second screen and it fills itself in when your match starts.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/GLr-P/RainbwStats/releases/latest">Download for Windows</a>
+        <a class="btn" href="https://github.com/GLr-P/RainbwStats">Source on GitHub</a>
+      </div>
+      <p class="small">Installer (auto-updates) or portable .exe · Windows 10/11 · MIT licensed</p>
+      <img class="shot" src="img/1-live.png" alt="Live page: map, picks for your roster, lobby ranks and operators" />
+      <p class="small">Live page, shown with sample data.</p>
+    </header>
+
+    <div class="grid">
+      <div class="card"><h3>Picks for you</h3><p>Top operators for the map, site and side, scored on <em>your</em> win rate and K/D there, the meta, how much you play them, and what your team is missing. Every pick says why.</p></div>
+      <div class="card"><h3>Your roster</h3><p>Choose the operators you're willing to play. Recommendations only come from that list.</p></div>
+      <div class="card"><h3>Lobby at a glance</h3><p>Rank, RP, peak, K/D, win rate and level for all 10 players, plus every operator they've played this match.</p></div>
+      <div class="card"><h3>Operator database</h3><p>Pick and win rates by map, site, side and patch, built from every player in your recorded matches (10 data points per round).</p></div>
+      <div class="card"><h3>Your history</h3><p>Per-operator stats by map and site, round timelines, and rank history that builds over time.</p></div>
+      <div class="card"><h3>Fast and hands-off</h3><p>Each round is parsed in under 100 ms. Ranks for the whole lobby come back in one request. There's nothing to click mid-match.</p></div>
+    </div>
+
+    <section>
+      <h2>How it works (and why it's safe)</h2>
+      <p>RainbwStats <b>never reads or modifies game memory</b> and never injects anything into Siege. It uses:</p>
+      <ol>
+        <li><b>Siege's own Match Replay files</b> on your disk: map, site, every player's operator each round, kills and outcomes.</li>
+        <li><b>Ubisoft's services</b> with your own login (optional): ranks and season stats for your lobby.</li>
+        <li><b>Screen OCR</b> (optional, off by default): reads the map and side before round 1, on your PC only.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Setup (2 minutes)</h2>
+      <ol>
+        <li>Download and run the installer.</li>
+        <li>In Siege: <b>Options → General → Match Replay → On</b>.</li>
+        <li>Optional: <b>Settings → Ubisoft account</b> in the app for lobby ranks.</li>
+        <li>Optional: <b>Roster</b>. Pick the operators you play on <span class="tag atk">ATK</span> and <span class="tag def">DEF</span>.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Screens</h2>
+      <div class="shots">
+        <img src="img/2-roster.png" alt="Roster picker" />
+        <img src="img/3-ops.png" alt="Operator stats table" />
+        <img src="img/4-meta.png" alt="Operator meta table" />
+        <img src="img/6-settings.png" alt="Settings and theme customization" />
+      </div>
+    </section>
+
+    <footer>
+      Not affiliated with or endorsed by Ubisoft. Rainbow Six Siege is a trademark of Ubisoft Entertainment.
+      The Ubisoft services API is unofficial and may change. · <a href="data/meta/latest.json">Dataset</a> · <a href="https://github.com/GLr-P/RainbwStats/issues">Report a bug</a>
+    </footer>
+  </div>
+</body>
+</html>

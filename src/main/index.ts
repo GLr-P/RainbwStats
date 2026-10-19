@@ -1,6 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import type { RoundRecord } from '../shared/types'
+import { demoLobby } from './demo'
 import { join } from 'node:path'
+import updater from 'electron-updater'
 import { openDb } from './db'
 import { SettingsStore } from './settings'
 import { SecureStore } from './secure'
@@ -41,17 +44,20 @@ function createWindow(s: Settings): BrowserWindow {
 app.on('second-instance', () => { win?.show(); win?.focus() })
 
 app.whenReady().then(async () => {
-  const dataDir = isSmoke ? join(app.getPath('temp'), 'rainbwstats-smoke') : app.getPath('userData')
+  // --demo=<rounds.json>: isolated profile seeded with scrubbed sample rounds (for public screenshots).
+  const demo = process.argv.find((a) => a.startsWith('--demo='))?.slice(7)
+  const dataDir = demo ? join(app.getPath('temp'), `rainbwstats-demo-${Date.now()}`) : isSmoke ? join(app.getPath('temp'), 'rainbwstats-smoke') : app.getPath('userData')
   mkdirSync(dataDir, { recursive: true })
   const db = openDb(join(dataDir, 'rainbwstats.db'))
   applyLearned(db)
   const settings = new SettingsStore(db)
-  if (!settings.get().gameDir) settings.set({ gameDir: findGameDirs()[0] ?? null })
+  if (demo) for (const r of JSON.parse(readFileSync(demo, 'utf8')) as RoundRecord[]) db.saveRound(r)
+  else if (!settings.get().gameDir) settings.set({ gameDir: findGameDirs()[0] ?? null })
   const secure = new SecureStore(dataDir)
   const dataset = new DatasetStore(dataDir)
   const ubi = new UbiClient({ fetch, now: Date.now, loadCredentials: secure.loadCredentials, loadAuth: secure.loadAuth, saveAuth: secure.saveAuth })
   const ctx: Ctx = { db, settings: () => settings.get(), dataset: () => dataset.get(), me: () => ubi.profileId ?? db.mostCommonRecorder() }
-  const lobby = new LobbyService(ubi, db)
+  const lobby = demo ? demoLobby() : new LobbyService(ubi, db)
   const replayRoot = () => (settings.get().gameDir ? replayRootOf(settings.get().gameDir!) : null)
   const engine = new LiveEngine(ctx, lobby, replayRoot)
   const ocr = new OcrDetector((d, fresh) => engine.setDetected(d, fresh))
@@ -64,6 +70,8 @@ app.whenReady().then(async () => {
   if (settings.get().ocrEnabled) ocr.start()
   if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
   void dataset.refresh(settings.get().datasetUrl).then((changed) => changed && engine.refresh())
+  // Installer builds update themselves from GitHub Releases (downloaded in background, applied on quit).
+  if (app.isPackaged && !isSmoke && !process.env['PORTABLE_EXECUTABLE_DIR']) void updater.autoUpdater.checkForUpdatesAndNotify().catch(() => undefined)
 
   const status = (): AppStatus => {
     const root = replayRoot()
@@ -82,7 +90,7 @@ app.whenReady().then(async () => {
     setSettings: async (patch) => {
       const prev = settings.get()
       const next = settings.set(patch)
-      if (next.gameDir !== prev.gameDir) { engine.restartWatcher(); engine.rescan() }
+      if (next.gameDir !== prev.gameDir) { engine.restartWatcher(); void engine.rescan() }
       if (next.alwaysOnTop !== prev.alwaysOnTop) win?.setAlwaysOnTop(next.alwaysOnTop)
       if (next.launchAtLogin !== prev.launchAtLogin) app.setLoginItemSettings({ openAtLogin: next.launchAtLogin })
       if (next.ocrEnabled !== prev.ocrEnabled) next.ocrEnabled ? ocr.start() : ocr.stop()
@@ -120,7 +128,7 @@ app.whenReady().then(async () => {
       const me = ctx.me()
       return { card: cards[0] ?? null, history: db.rankHistory(id), encounters: me && me !== id ? db.encounters(id, me) : 0, error: e2 }
     },
-    rescan: async () => { engine.rescan(); return status() },
+    rescan: async () => { await engine.rescan(); return status() },
     catalog: async () => ({ operators: [...(dataset.get().operators ?? []), ...(db.getJson<NonNullable<CatalogOverrides['operators']>>('learnedOperators') ?? [])], maps: dataset.get().maps }),
     pickGameDir: async () => {
       const r = await dialog.showOpenDialog(win!, { title: 'Select your Rainbow Six Siege folder', properties: ['openDirectory'] })
@@ -131,7 +139,7 @@ app.whenReady().then(async () => {
   }
   for (const m of API_METHODS) ipcMain.handle(`rs:${m}`, (_e, ...args: unknown[]) => (api[m] as (...a: unknown[]) => unknown)(...args))
 
-  tray = new Tray(nativeImage.createEmpty())
+  tray = new Tray(nativeImage.createFromPath(join(app.getAppPath(), 'resources', 'tray.png')))
   tray.setToolTip('RainbwStats')
   tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Show', click: () => win?.show() }, { label: 'Quit', click: () => app.quit() }]))
   tray.on('click', () => win?.show())

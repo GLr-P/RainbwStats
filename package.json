@@ -15,7 +15,10 @@
     "test": "vitest run",
     "check": "npm run typecheck && npm run test",
     "smoke": "electron-vite build && node scripts/run.mjs electron . --smoke",
-    "dist": "electron-vite build && electron-builder --win --publish never"
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "release": "electron-vite build && electron-builder --win --publish always",
+    "export-dataset": "tsx scripts/export-dataset.ts",
+    "shots": "electron-vite build && node scripts/run.mjs electron . --smoke --demo=test/fixtures/rounds-sample.json --shots=site/img"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
@@ -39,5 +42,53 @@
   },
   "allowScripts": {
     "electron-winstaller@5.4.0": true
-  }
+  },
+  "build": {
+    "appId": "io.github.glr-p.rainbwstats",
+    "productName": "RainbwStats",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**",
+      "resources/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "${productName}-${version}-${arch}-${target}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "GLr-P",
+        "repo": "RainbwStats"
+      }
+    ]
+  },
+  "repository": "github:GLr-P/RainbwStats",
+  "homepage": "https://glr-p.github.io/RainbwStats/"
 }
