@@ -1,6 +1,6 @@
 // Pure construction of LiveState from stored rounds. No I/O beyond the Ctx queries.
 import type { Ctx } from '../services'
-import { recsFor, siteRecsFor } from '../services'
+import { mainsOf, recsFor, siteRecsFor } from '../services'
 import type { LivePhase, LivePlayer, LiveState, PlayerCard, RoundSummary } from '../../shared/ipc'
 import type { RoundRecord, Side } from '../../shared/types'
 
@@ -58,7 +58,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
   for (const r of rounds) {
     const t = myTeamIn(r)
     for (const p of r.players) {
-      const lp = byId.get(p.profileId) ?? { profileId: p.profileId, name: p.username, isMe: p.profileId === me, card: null, ops: [], kills: 0, deaths: 0, mine: true }
+      const lp = byId.get(p.profileId) ?? { profileId: p.profileId, name: p.username, isMe: p.profileId === me, card: null, ops: [] as LivePlayer['ops'], mains: [], kills: 0, deaths: 0, mine: true }
       lp.name = p.username
       lp.mine = p.teamIndex === t
       lp.ops.push({ round: r.round, operatorId: p.operatorId, side: p.side, won: p.won })
@@ -67,7 +67,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
       byId.set(p.profileId, lp)
     }
   }
-  const players = [...byId.values()].map(({ mine, ...p }) => ({ ...p, card: o.cards?.get(p.profileId) ?? null, mine }))
+  const players = [...byId.values()].map(({ mine, ...p }) => ({ ...p, card: o.cards?.get(p.profileId) ?? null, mains: mainsOf(ctx, p.profileId), mine }))
   const order = (a: LivePlayer, b: LivePlayer) => +b.isMe - +a.isMe || (b.card?.ranked?.rankPoints ?? 0) - (a.card?.ranked?.rankPoints ?? 0)
   const strip = ({ mine: _m, ...p }: LivePlayer & { mine: boolean }) => p
 

@@ -1,8 +1,8 @@
 // Query layer shared by IPC handlers and the live engine.
 import type { Db } from './db'
 import type { Dataset } from '../shared/data/dataset'
-import type { MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
-import { baselineFor, recommend } from '../shared/recommend'
+import type { ApiOps, LivePlayer, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
+import { baselineFor, recommend, type AggMap } from '../shared/recommend'
 import { allOperators, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import type { Side } from '../shared/types'
 
@@ -27,6 +27,45 @@ export function recentWeights(ctx: Ctx, side: Side, now = Date.now()): Map<strin
   return out
 }
 
+/** Ubisoft Career aggregates (by operator key) → AggMap by operator id for one side. */
+function apiAggMap(ctx: Ctx, side: Side, f: { profileId?: string; excludeProfileId?: string; season: string }): { map: AggMap; players: number } {
+  const map: AggMap = new Map()
+  let players = 0
+  for (const [key, a] of ctx.db.apiOpAggs(f)) {
+    const op = operatorByKey(key)
+    if (!op || op.side !== side) continue
+    map.set(op.id, { rounds: a.rounds, wins: a.wins, kills: 0, deaths: 0, headshots: 0 })
+    players = Math.max(players, a.players)
+  }
+  return { map, players: f.excludeProfileId !== undefined ? ctx.db.apiPlayerCount(f.season, f.excludeProfileId) : players }
+}
+
+export const currentSeason = (ctx: Ctx): string => ctx.dataset().season
+
+/** A player's most played operators (current season, falling back to lifetime). */
+export function mainsOf(ctx: Ctx, profileId: string, top = 3): LivePlayer['mains'] {
+  const pick = (season: string) => [...ctx.db.apiOpAggs({ profileId, season })]
+    .map(([key, a]) => ({ op: operatorByKey(key), ...a }))
+    .filter((x) => x.op && x.rounds > 0)
+    .sort((a, b) => b.rounds - a.rounds)
+    .slice(0, top)
+    .map((x) => ({ opKey: x.op!.key, name: x.op!.name, side: x.op!.side, rounds: x.rounds, wins: x.wins }))
+  const season = pick(currentSeason(ctx))
+  return season.length ? season : pick('all')
+}
+
+/** Ubisoft Career operator table for the Operators/Meta pages. */
+export function apiOps(ctx: Ctx, f: { who: 'me' | 'others'; season: string; playlist?: string }, lastError: string | null): ApiOps {
+  const me = ctx.me() ?? ''
+  const aggs = ctx.db.apiOpAggs({ season: f.season, playlist: f.playlist, ...(f.who === 'me' ? { profileId: me } : { excludeProfileId: me }) })
+  const rows = [...aggs].map(([key, a]) => {
+    const op = operatorByKey(key)
+    return op ? { opKey: key, name: op.name, side: op.side, ...a } : null
+  }).filter((x): x is ApiOps['rows'][number] => !!x).sort((a, b) => b.rounds - a.rounds)
+  const seasons = [...new Set(['all', currentSeason(ctx), ...ctx.db.apiSeasons(me)])]
+  return { rows, players: f.who === 'me' ? (rows.length ? 1 : 0) : ctx.db.apiPlayerCount(f.season, me), seasons, current: currentSeason(ctx), lastError }
+}
+
 export function rosterIds(s: Settings, side: Side): string[] {
   return s.roster[side].map((k) => operatorByKey(k)?.id).filter((x): x is string => !!x)
 }
@@ -35,10 +74,18 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
   const s = ctx.settings()
   const me = ctx.me()
   const mineF = (extra: object) => (me ? ctx.db.opAggs({ profileId: me, side: q.side, ...extra }) : new Map())
+  const season = currentSeason(ctx)
+  const myApi = me ? apiAggMap(ctx, q.side, { profileId: me, season: 'all' }).map : new Map()
+  const crowdSeason = apiAggMap(ctx, q.side, { excludeProfileId: me ?? '', season })
+  // Comfort: replay recency plus how much you've played each op this season (Ubisoft).
+  const recent = recentWeights(ctx, q.side)
+  if (me) for (const [id, a] of apiAggMap(ctx, q.side, { profileId: me, season }).map) recent.set(id, (recent.get(id) ?? 0) + a.rounds * 0.3)
   return recommend({
+    crowdSeason: crowdSeason.map, crowdSeasonPlayers: crowdSeason.players,
     side: q.side, mapKey: q.mapKey, site: q.site, roster: rosterIds(s, q.side), banned: q.banned, teammateOps: q.teammateOps,
     mine: {
       overall: mineF({}),
+      api: myApi,
       map: q.mapKey ? mineF({ mapKey: q.mapKey }) : undefined,
       site: q.mapKey && q.site ? mineF({ mapKey: q.mapKey, site: q.site }) : undefined
     },
@@ -49,7 +96,7 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
       site: q.mapKey && q.site ? ctx.db.opAggs({ mapKey: q.mapKey, site: q.site, side: q.side }) : undefined
     },
     baseline: baselineFor(ctx.dataset(), q.mapKey),
-    recent: recentWeights(ctx, q.side),
+    recent,
     weights: s.weights, minRounds: s.minRounds, topN: q.topN ?? s.topN
   })
 }

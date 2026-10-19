@@ -97,6 +97,7 @@ Tubarao|288200867549|d|de,an
 Sentry|409899350403|d|an
 Skopos|386098331713|d|in,an
 Denari|374667787937|d|de,an
+Noor|x:noor|d|de,an
 `
 
 export const RECRUIT_ID = '359656345734'

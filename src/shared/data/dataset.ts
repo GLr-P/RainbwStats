@@ -26,6 +26,6 @@ export const BUNDLED_DATASET: Dataset = {
     smoke: 0.7, mira: 0.7, azami: 0.7, echo: 0.6, thunderbird: 0.65, doc: 0.6, rook: 0.55, vigil: 0.5, caveira: 0.55,
     lesion: 0.6, ela: 0.55, aruni: 0.65, thorn: 0.55, goyo: 0.55, kapkan: 0.45, frost: 0.55, castle: 0.5, pulse: 0.5,
     alibi: 0.45, clash: 0.4, tachanka: 0.5, warden: 0.5, mozzie: 0.55, oryx: 0.5, solis: 0.55, fenrir: 0.55,
-    tubarao: 0.6, sentry: 0.5, skopos: 0.5, denari: 0.55
+    tubarao: 0.6, sentry: 0.5, skopos: 0.5, denari: 0.55, noor: 0.6
   }
 }

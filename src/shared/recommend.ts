@@ -14,10 +14,14 @@ export interface RecInput {
   roster: string[]
   banned?: string[]
   teammateOps?: string[]
-  mine: { site?: AggMap; map?: AggMap; overall: AggMap }
+  /** Replay-derived stats (map/site detail). `api` = Ubisoft Career stats (all your games, no kills, no map). */
+  mine: { site?: AggMap; map?: AggMap; overall: AggMap; api?: AggMap }
   crowd: { site?: AggMap; map?: AggMap; overall?: AggMap }
   /** Team-rounds behind the crowd scope (exact pick-rate denominator); estimated when absent. */
   crowdTeamRounds?: number
+  /** Current-season operator stats of other players seen (Ubisoft Career), this side only. */
+  crowdSeason?: AggMap
+  crowdSeasonPlayers?: number
   /** operator id → 0..1 prior strength (map-specific when available). */
   baseline: Map<string, number>
   /** operator id → recency-weighted play count for the user. */
@@ -49,7 +53,8 @@ export function recommend(inp: RecInput): Recommendation[] {
     .filter((o) => o.side === inp.side && !banned.has(o.id))
 
   // Priors from the user's own overall performance on this side.
-  const myAll = sum(inp.mine.overall)
+  const replayAll = sum(inp.mine.overall), apiAll = sum(inp.mine.api)
+  const myAll = apiAll.rounds > replayAll.rounds ? { ...apiAll, kills: replayAll.kills, deaths: replayAll.deaths } : replayAll
   const priorWr = shrink(myAll.wins, myAll.rounds, 0.5, 20)
   const priorKpr = shrink(myAll.kills, myAll.rounds, 0.7, 20)
   const k = Math.max(1, inp.minRounds)
@@ -59,20 +64,26 @@ export function recommend(inp: RecInput): Recommendation[] {
   const crowdTotal = sum(crowdScope).rounds
   const sideOps = allOperators(inp.side).length || 1
 
+  const seasonTotal = sum(inp.crowdSeason).rounds
+
   const teamRoles = new Set((inp.teammateOps ?? []).flatMap((id) => operatorById(id)?.roles ?? []))
   const maxRecent = Math.max(1, ...pool.map((o) => inp.recent?.get(o.id) ?? 0))
 
   const recs = pool.map((op): Recommendation & { parts: number[] } => {
     // Personal: hierarchical shrinkage overall → map → site.
-    const o = get(inp.mine.overall, op.id), m = get(inp.mine.map, op.id), s = get(inp.mine.site, op.id)
-    const wrO = shrink(o.wins, o.rounds, priorWr, k), kprO = shrink(o.kills, o.rounds, priorKpr, k)
+    const o = get(inp.mine.overall, op.id), m = get(inp.mine.map, op.id), s = get(inp.mine.site, op.id), a = get(inp.mine.api, op.id)
+    // Overall win rate: Ubisoft's count when it covers more rounds (all PCs/games); K/D only exists in replays.
+    const oWr = a.rounds > o.rounds ? a : o
+    const wrO = shrink(oWr.wins, oWr.rounds, priorWr, k), kprO = shrink(o.kills, o.rounds, priorKpr, k)
     const wrM = shrink(m.wins, m.rounds, wrO, k), kprM = shrink(m.kills, m.rounds, kprO, k)
     const wrS = shrink(s.wins, s.rounds, wrM, k), kprS = shrink(s.kills, s.rounds, kprM, k)
     const [wr, kpr] = inp.site ? [wrS, kprS] : inp.mapKey ? [wrM, kprM] : [wrO, kprO]
-    const scope: Recommendation['scope'] = inp.site && s.rounds ? 'site' : inp.mapKey && m.rounds ? 'map' : o.rounds ? 'overall' : 'none'
-    const shown = scope === 'site' ? s : scope === 'map' ? m : o
+    const scope: Recommendation['scope'] = inp.site && s.rounds ? 'site' : inp.mapKey && m.rounds ? 'map' : oWr.rounds ? 'overall' : 'none'
+    const shown = scope === 'site' ? s : scope === 'map' ? m : oWr
+    const fromApi = scope === 'overall' && oWr === a
     // Rank by a lower confidence bound so tiny samples don't win on luck.
-    const nEff = inp.site ? s.rounds + 0.5 * m.rounds + 0.25 * o.rounds : inp.mapKey ? m.rounds + 0.5 * o.rounds : o.rounds
+    const oN = oWr.rounds
+    const nEff = inp.site ? s.rounds + 0.5 * m.rounds + 0.25 * oN : inp.mapKey ? m.rounds + 0.5 * oN : oN
     const wrLcb = wr - 0.5 * Math.sqrt((wr * (1 - wr)) / (nEff + k))
     // Relative to an op with no data (same penalty, prior mean) so "no data" scores a neutral 0.5.
     const priorLcb = priorWr - 0.5 * Math.sqrt((priorWr * (1 - priorWr)) / k)
@@ -88,7 +99,15 @@ export function recommend(inp: RecInput): Recommendation[] {
     const pickTerm = Math.max(-0.15, Math.min(0.15, 0.05 * Math.log2(Math.max(relPick, 1 / 64))))
     const crowdScore = clamp01(0.5 + (crowdWr - 0.5) * 3 + pickTerm)
     const wCrowd = c.rounds / (c.rounds + CROWD_K)
-    const meta = wCrowd * crowdScore + (1 - wCrowd) * base
+    // Season meta from players you've met (Ubisoft stats, no map detail) sits between replays and baseline.
+    const sc = get(inp.crowdSeason, op.id)
+    const scTotal = seasonTotal
+    const scWr = shrink(sc.wins, sc.rounds, 0.5, 50)
+    const scRel = scTotal ? (sc.rounds / scTotal) * sideOps : 1
+    const scScore = clamp01(0.5 + (scWr - 0.5) * 3 + Math.max(-0.15, Math.min(0.15, 0.05 * Math.log2(Math.max(scRel, 1 / 64)))))
+    const wSeason = sc.rounds / (sc.rounds + 200)
+    const prior = wSeason * scScore + (1 - wSeason) * base
+    const meta = wCrowd * crowdScore + (1 - wCrowd) * prior
 
     // Comfort: how much the user actually plays it (recency-weighted).
     const comfort = (inp.recent?.get(op.id) ?? 0) / maxRecent
@@ -105,13 +124,15 @@ export function recommend(inp: RecInput): Recommendation[] {
 
     const reasons: string[] = []
     const where = scope === 'site' ? 'this site' : scope === 'map' ? 'this map' : 'overall'
-    if (shown.rounds) reasons.push(`You: ${pct(shown.wins / shown.rounds)} WR, ${(shown.kills / Math.max(1, shown.deaths)).toFixed(2)} K/D in ${shown.rounds} rds (${where})`)
+    if (fromApi) reasons.push(`You: ${pct(shown.wins / shown.rounds)} WR in ${shown.rounds} rds (all your games)`)
+    else if (shown.rounds) reasons.push(`You: ${pct(shown.wins / shown.rounds)} WR, ${(shown.kills / Math.max(1, shown.deaths)).toFixed(2)} K/D in ${shown.rounds} rds (${where})`)
     if (c.rounds >= 5) reasons.push(`Meta: ${pct(c.wins / c.rounds)} WR · ${pct(pickRate)} pick (${c.rounds} rds)`)
+    else if (sc.rounds >= 20) reasons.push(`Season meta: ${pct(sc.wins / sc.rounds)} WR · in ${pct(Math.min(1, (sc.rounds * 5) / Math.max(1, scTotal)))} of rounds (${inp.crowdSeasonPlayers ?? 0} players)`)
     else reasons.push(`Baseline strength ${pct(base)}`)
     if (comfort >= 0.6) reasons.push('One of your most played')
     if (inp.teammateOps?.length && fills.length) reasons.push(`Team lacks ${fills.map((r) => ROLE_LABEL[r] ?? r).join(' + ')}`)
 
-    return { operatorId: op.id, name: op.name, score, reasons, personal: shown, scope, metaRounds: c.rounds, baseline: c.rounds < 5, parts }
+    return { operatorId: op.id, name: op.name, score, reasons, personal: shown, scope, metaRounds: c.rounds, baseline: c.rounds < 5 && sc.rounds < 20, parts }
   })
 
   return recs

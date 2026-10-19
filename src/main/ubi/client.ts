@@ -273,6 +273,19 @@ export class UbiClient {
     return out
   }
 
+  /** Per-operator rounds played/won for many players in one request per 40 ids (the official
+   *  Career page's stats). `calendarId` selects one season; omit it for lifetime. */
+  async operatorStats(ids: string[], opKeyOf: (hex: string) => string | undefined, season?: { code: string; calendarId: string }): Promise<OperatorStatRow[]> {
+    const names = season ? 'RoundPlayedOperatorConsolePlaylistSeasonal,RoundWonOperatorConsolePlaylistSeasonal' : 'RoundPlayedOperatorConsolePlaylist,RoundWonOperatorConsolePlaylist'
+    const out: OperatorStatRow[] = []
+    for (const part of chunk(ids, 40)) {
+      const cal = season ? `&calendarEntryId=${season.calendarId}` : ''
+      const data = await this.get(`/v1/profiles/stats?profileIds=${part.join(',')}&spaceId=${UBI.xplaySpace}&statNames=${names}${cal}`)
+      out.push(...parseOperatorStats(data, season?.code ?? 'all', opKeyOf))
+    }
+    return out
+  }
+
   async basicStats(ids: string[]): Promise<BasicStats[]> {
     const names = 'PClearanceLevel,PPvPTimePlayed,PTotalTimePlayed'
     const out: BasicStats[] = []
@@ -286,6 +299,42 @@ export class UbiClient {
     }
     return out
   }
+}
+
+export interface OperatorStatRow {
+  profileId: string
+  season: string // 'all' or season code (e.g. 'Y11S3')
+  playlist: 'ranked' | 'unranked' | 'quick' | 'other'
+  opKey: string
+  rounds: number
+  wins: number
+}
+
+const PLAYLISTS: Record<string, OperatorStatRow['playlist']> = {
+  MATCHMAKING_PVP_RANKED: 'ranked', MATCHMAKING_PVP_UNRANKED: 'unranked', MATCHMAKING_PVP_CASUAL: 'quick'
+}
+
+/** Parses Career-page operator stats ("RoundPlayedOperatorConsolePlaylist[Seasonal].….playlist.X.CLASS.<hex>").
+ *  `opKeyOf` maps the stats-service hex id to our operator key (unknown ids are dropped). */
+export function parseOperatorStats(data: unknown, season: string, opKeyOf: (hex: string) => string | undefined): OperatorStatRow[] {
+  const rows = new Map<string, OperatorStatRow>()
+  for (const p of arr(isObj(data) ? data['profiles'] : null).filter(isObj)) {
+    const profileId = s(p['profileId'])
+    const stats = isObj(p['stats']) ? p['stats'] : {}
+    for (const [k, v] of Object.entries(stats)) {
+      const m = /^Round(Played|Won)OperatorConsolePlaylist(?:Seasonal)?\..*\.playlist\.([A-Z_]+)\.CLASS\.([0-9A-F]{16})$/.exec(k)
+      if (!m) continue
+      const opKey = opKeyOf(m[3]!)
+      if (!opKey) continue
+      const playlist = PLAYLISTS[m[2]!] ?? 'other'
+      const id = `${profileId}|${playlist}|${opKey}`
+      const row = rows.get(id) ?? { profileId, season, playlist, opKey, rounds: 0, wins: 0 }
+      const value = n(isObj(v) ? v['value'] : v)
+      if (m[1] === 'Played') row.rounds += value; else row.wins += value
+      rows.set(id, row)
+    }
+  }
+  return [...rows.values()].filter((r) => r.rounds > 0)
 }
 
 const BOARD_RENAMES: Record<string, string> = { living_game_mode: 'dual_front', pvp_ranked: 'ranked' }

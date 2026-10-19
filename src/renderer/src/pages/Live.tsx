@@ -111,7 +111,7 @@ function TeamTable({ title, players }: { title: string; players: LivePlayer[] })
     <>
       <div className="team-h"><h3 style={{ fontSize: '0.95rem' }}>{title}</h3></div>
       <table>
-        <thead><tr><th>Player</th><th>Rank</th><th className="r">Peak</th><th className="r">K/D</th><th className="r">Win %</th><th className="r">Lvl</th><th>This match</th></tr></thead>
+        <thead><tr><th>Player</th><th>Rank</th><th className="r">Peak</th><th className="r">K/D</th><th className="r">Win %</th><th className="r">Lvl</th><th>Mains (season)</th><th>This match</th></tr></thead>
         <tbody>
           {players.map((p) => {
             const c = p.card
@@ -125,6 +125,9 @@ function TeamTable({ title, players }: { title: string; players: LivePlayer[] })
                 <td className="r num">{se ? ratio(se.kills, se.deaths) : '–'}</td>
                 <td className="r num">{games ? pct(se!.wins / games) : '–'}</td>
                 <td className="r num">{c?.level ?? '–'}</td>
+                <td className="ops"><div className="opchips">{p.mains.length ? p.mains.map((m) => (
+                  <span key={m.opKey} className={`opchip ${m.side}`} title={`${m.rounds} rounds · ${pct(m.wins / Math.max(1, m.rounds))} win`}>{m.name} <span className="faint">{pct(m.wins / Math.max(1, m.rounds))}</span></span>
+                )) : <span className="faint">–</span>}</div></td>
                 <td className="ops"><div className="opchips">{p.ops.map((o) => <OpChip key={o.round} id={o.operatorId} title={`R${o.round} ${o.won ? 'won' : 'lost'}`} />)}</div></td>
               </tr>
             )

@@ -31,6 +31,8 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
   private pending = new Map<string, NodeJS.Timeout>()
   private current: LiveState = emptyLive()
   lastIngest: string | null = null
+  /** Called with lobby profile ids after ranks load (Ubisoft operator stats sync). */
+  onLobby: ((ids: string[]) => Promise<unknown>) | null = null
   private readonly ctx: Ctx
   private readonly lobby: LobbyService
   private readonly root: () => string | null
@@ -126,6 +128,7 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     for (const c of cards) this.cards.set(c.profileId, c)
     this.lobbyError = error ?? null
     this.push(rounds, live ? undefined : 'ended')
+    if (this.onLobby) { await this.onLobby(Object.keys(names)).catch(() => undefined); this.push(rounds, live ? undefined : 'ended') }
   }
 
   private push(rounds?: RoundRecord[], phase?: LiveState['phase']): void {
@@ -193,6 +196,7 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
           for (const c of cards) this.cards.set(c.profileId, c)
           this.lobbyError = error ?? null
           this.push(subset, 'match')
+          if (this.onLobby) { await this.onLobby(Object.keys(names)).catch(() => undefined); this.push(subset, 'match') }
         }
         await sleep()
       }

@@ -16,6 +16,7 @@ Ad-free, open-source Rainbow Six Siege X companion for Windows.
 | Source | Used for |
 |---|---|
 | Siege's own **Match Replay** files on your disk | Map, site, every player's operator per round, outcomes |
+| Ubisoft Career stats (same as the official Career page) | Your per-operator rounds & win rate for every season, and every lobby player's mains (works without replays) |
 | Ubisoft services, after you sign in on **Ubisoft's own login page** (Xbox / PlayStation / Facebook / email) | Ranks, RP, K/D, W/L for players in your lobby |
 | Screen OCR (optional) | Map and side before round 1 |
 

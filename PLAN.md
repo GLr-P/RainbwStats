@@ -142,6 +142,20 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 - [ ] App blends crowd → local → seed, with sample sizes shown
 - Needs: a Cloudflare account (`npx wrangler login`, one-time user step).
 
+### Phase 9 — Ubisoft Career operator stats (no replays needed) ✅
+- [x] Found by reading the official Career page code (ubisoft.com/…/siege/services/career): `/v1/profiles/stats` with stat names `Round{Played,Won}OperatorConsolePlaylist[Seasonal]` (+ `calendarEntryId` per season, Y7S4→Y11S3). Works for PC, for **any** player, and **batched** (40 ids/request)
+- [x] Official operator table (78 ops, hex ids, sides) + season calendar ids → `src/shared/data/statsIds.ts`. Confirms Rauora=attack, Denari=defense; adds Noor
+- [x] Your history: lifetime + every season (past seasons fetched once), current season hourly. Survives reinstalls / works on any PC
+- [x] Lobby: lifetime + current season for all 10 players, 2 requests per match, cached 12 h → **Mains** column in the lobby
+- [x] Season meta from every player you meet (Meta page, "Players I've met") → feeds recommendations between replay meta and baseline
+- [x] Recommendations: your Ubisoft win rate per operator when replays are thin; season play time feeds comfort
+
+### Next (proposed order)
+1. **Rank-banded meta**: we know every lobby player's rank → meta per rank tier ("what wins at Emerald"). Cheap, high value
+2. **Ban suggestions**: enemy mains + their win rates → suggested bans before the ban phase
+3. **Phase 8 crowd DB**: pool anonymized per-season operator stats from all users' lobbies (+ replay map/site data) → global meta in days
+4. Export/import local data between PCs (replay-derived map/site stats)
+
 ### Backlog / expansion
 Opt-in tracker.gg enrichment · in-game overlay window · ban-phase OCR · teammate-aware recs ·
 weapon/attachment stats from replays · export CSV · per-patch diff view ("what changed in Y11S3.1").
@@ -178,6 +192,7 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 | 2026-10-19 | 5 | check ✅ 35 tests. Simulated replay drops (real Y11S3 files copied into a watched dir): file → LiveState in **181–262 ms** (budget 300). Side prediction + match-end (incl. OT) tested |
 | 2026-10-19 | 6 | Windows OCR worker verified on this PC: boot 0.4 s, **24 ms/frame**, read CLUBHOUSE/DEFENSE/site correctly from a rendered frame. Matcher tests incl. OCR noise + no false positives. Real in-game frames untested (user check) |
 | 2026-10-19 | 4 | Screenshot review of every page found + fixed: misleading side tags, stale header side after match end, inflated pick rate in 3v3 (now exact team-rounds), baseline shown as win %, op chips overflowing, all-ops score penalty (now neutral 50 for no data) |
+| 2026-10-19 | 9 | Live-verified with user session (read-only): your stats 200 OK (191 values, 90 operator rows since 2024-08), batched 3 profiles 200 OK, seasonal Y11S3 200 OK; real hex ids map to Ash/Finka/Kapkan/Kali. 50 tests (parser, sync scheduling = 2 req/lobby, API-only recommendations). Debugged a screenshot-only render-timing artifact (engine state was correct) |
 | 2026-10-19 | 7.2 | User report: password login → 403. Probed live: Ubisoft edge bot-protection now blocks Basic-auth logins for app id 4391c956 (HTML 403); Ubisoft Connect PC id f68a4bb5 passes; ticket exchange/rm_v1/2FA/GETs unaffected. Fix: login via Connect PC id → exchange to ours, fallback order, clear "blocked" error. Real client vs live Ubisoft with a fake account → "Invalid credentials" (401) ✅. 47 tests |
 | 2026-10-19 | 7.1 | v0.1.1: Simulate last match (tested: phases loading→match→ended). v0.1.2: sign in via Ubisoft's official page (no password stored; Steam not offered by Ubisoft), session exchange + remember-me refresh + silent re-login + exchange-refused fallback (45 tests); real Electron self-test of both capture paths ✅ (`npm run selftest`); found + fixed ERR_FAILED when a login window opens right after another closes. Visible auto-update: 30-min checks, Settings panel, restart banner hidden during matches |
 | 2026-10-19 | 7 | NSIS + portable built locally; packaged exe passes smoke (node:sqlite, updater, tray in asar). Self-review found + fixed: first-run import blocking UI (now async), watcher never starting if MatchReplay created later. Pages enabled. CI/Release workflows written; GitHub Actions degraded today so runs queued |

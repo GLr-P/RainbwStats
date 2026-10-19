@@ -26,8 +26,9 @@ export function applyCatalogOverrides(o: CatalogOverrides): void {
     const key = op.name.toLowerCase().replace(/[^a-z0-9]/g, '')
     const existing = opsByKey.get(key)
     const info: OperatorInfo = { id: op.id, key, name: op.name, side: op.side, roles: op.roles ?? existing?.roles ?? [] }
-    // Same id → replace. Same name, new id (Ubisoft re-issued it) → keep both so old rounds resolve.
-    const i = OPERATORS.findIndex((x) => x.id === op.id)
+    // Same id, or a placeholder ("x:…") for this operator → replace.
+    // Same name, new real id (Ubisoft re-issued it) → keep both so old rounds resolve.
+    const i = OPERATORS.findIndex((x) => x.id === op.id || (x.key === key && x.id.startsWith('x:')))
     if (i >= 0) OPERATORS[i] = info; else OPERATORS.push(info)
   }
   for (const m of o.maps ?? []) {

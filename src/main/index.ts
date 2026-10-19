@@ -4,6 +4,7 @@ import type { RoundRecord } from '../shared/types'
 import { demoLobby } from './demo'
 import { Updater } from './updater'
 import { ubisoftWebLogin } from './ubi/weblogin'
+import { OpStatsSync } from './ubi/opsync'
 import { join } from 'node:path'
 import { openDb } from './db'
 import { SettingsStore } from './settings'
@@ -13,7 +14,7 @@ import { UbiClient, UbiError } from './ubi/client'
 import { LobbyService } from './ubi/lobby'
 import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
-import { metaRows, opStats, type Ctx } from './services'
+import { apiOps, currentSeason, metaRows, opStats, type Ctx } from './services'
 import { applyLearned } from './replay/ingest'
 import { findGameDirs, replayRootOf } from './replay/locate'
 import { OcrDetector } from './ocr/detector'
@@ -69,6 +70,10 @@ app.whenReady().then(async () => {
   const lobby = demo ? demoLobby() : new LobbyService(ubi, db)
   const replayRoot = () => (settings.get().gameDir ? replayRootOf(settings.get().gameDir!) : null)
   const engine = new LiveEngine(ctx, lobby, replayRoot)
+  const opsync = new OpStatsSync(ubi, db, () => currentSeason(ctx))
+  engine.onLobby = (ids) => opsync.syncPlayers(ids)
+  /** Your Ubisoft operator history (all seasons; past seasons fetched once). */
+  const syncMine = () => { const me = ctx.me(); if (me && ubi.canAuth) void opsync.syncMine(me).then((ok) => ok && engine.refresh()) }
   const ocr = new OcrDetector((d, fresh) => engine.setDetected(d, fresh))
   ocr.shouldRun = () => engine.needsRoundOneInfo
   ocr.sitesByMap = (k) => db.sites(k).map((s) => s.site)
@@ -78,6 +83,7 @@ app.whenReady().then(async () => {
   engine.start()
   if (settings.get().ocrEnabled) ocr.start()
   if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
+  if (!isSmoke) { syncMine(); setInterval(syncMine, 3600_000) }
   void dataset.refresh(settings.get().datasetUrl).then((changed) => changed && engine.refresh())
   // Installer builds update themselves from GitHub Releases (downloaded in background, applied on quit).
   const updates = new Updater((s) => win?.webContents.send('rs:update', s))
@@ -116,11 +122,12 @@ app.whenReady().then(async () => {
         secure.saveCredentials({ email, password })
         if (r === 'twoFactor') return { ok: false, twoFactor: true }
         void ubi.warm().catch(() => undefined)
+        syncMine()
         return { ok: true }
       } catch (e) { return authErr(e) }
     },
     submitTwoFactor: async (code) => {
-      try { await ubi.submitTwoFactor(code); void ubi.warm().catch(() => undefined); return { ok: true } } catch (e) { return authErr(e) }
+      try { await ubi.submitTwoFactor(code); void ubi.warm().catch(() => undefined); syncMine(); return { ok: true } } catch (e) { return authErr(e) }
     },
     logout: async () => { ubi.logout(); secure.clear(); await session.fromPartition('persist:ubisoft-login').clearStorageData() },
     loginWithUbisoft: async () => {
@@ -129,9 +136,11 @@ app.whenReady().then(async () => {
         if (!web) return { ok: false, error: 'Sign-in window closed' }
         await ubi.adoptWebSession(web)
         void ubi.warm().catch(() => undefined)
+        syncMine()
         return { ok: true }
       } catch (e) { return authErr(e) }
     },
+    apiOps: async (f) => apiOps(ctx, f, opsync.lastError),
     updateStatus: async () => updates.status,
     checkForUpdates: () => updates.check(),
     installUpdate: async () => updates.install(),
@@ -178,6 +187,7 @@ app.whenReady().then(async () => {
         mkdirSync(shots, { recursive: true })
         win!.setSize(1440, 900)
         await engine.showLatest()
+        await new Promise((r) => setTimeout(r, 1500)) // let a busy machine finish rendering the pushed state
         for (const [i, label] of ['Live', 'Roster', 'Ops', 'Meta', 'Players', 'Settings'].entries()) {
           await js(`[...document.querySelectorAll('.nav button')].find(b => b.textContent.trim() === '${label}')?.click()`)
           await new Promise((r) => setTimeout(r, 700))

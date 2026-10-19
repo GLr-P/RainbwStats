@@ -30,6 +30,8 @@ export interface LivePlayer {
   isMe: boolean
   card: PlayerCard | null
   ops: { round: number; operatorId: string; side: Side | null; won: boolean }[]
+  /** Most played operators (Ubisoft stats, current season, else lifetime). */
+  mains: { opKey: string; name: string; side: Side; rounds: number; wins: number }[]
   kills: number
   deaths: number
 }
@@ -114,6 +116,9 @@ export interface AppStatus {
   version: string
 }
 
+export interface ApiOpRow { opKey: string; name: string; side: Side; rounds: number; wins: number; players: number }
+export interface ApiOps { rows: ApiOpRow[]; players: number; seasons: string[]; current: string; lastError: string | null }
+
 export interface AuthResult { ok: boolean; twoFactor?: boolean; error?: string }
 
 export interface UpdateStatus {
@@ -149,6 +154,8 @@ export interface RsApi {
   catalog(): Promise<CatalogOverrides>
   /** Opens Ubisoft's own login page (Xbox / PlayStation / Facebook / email). */
   loginWithUbisoft(): Promise<AuthResult>
+  /** Ubisoft Career operator stats: yours ('me') or aggregated over players you've met ('others'). */
+  apiOps(f: { who: 'me' | 'others'; season: string; playlist?: string }): Promise<ApiOps>
   updateStatus(): Promise<UpdateStatus>
   checkForUpdates(): Promise<UpdateStatus>
   installUpdate(): Promise<void>
@@ -158,5 +165,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'updateStatus', 'checkForUpdates', 'installUpdate'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'updateStatus', 'checkForUpdates', 'installUpdate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate'>[]

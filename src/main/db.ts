@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS ingested_files (
   path TEXT PRIMARY KEY, mtime_ms INTEGER NOT NULL, ok INTEGER NOT NULL, error TEXT
 );
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- Ubisoft Career stats: per-operator rounds played/won per player, season ('all' = lifetime) and playlist.
+CREATE TABLE IF NOT EXISTS api_op_stats (
+  profile_id TEXT NOT NULL, season TEXT NOT NULL, playlist TEXT NOT NULL, op_key TEXT NOT NULL,
+  rounds INTEGER NOT NULL, wins INTEGER NOT NULL, PRIMARY KEY (profile_id, season, playlist, op_key)
+);
+CREATE TABLE IF NOT EXISTS api_op_fetch (profile_id TEXT NOT NULL, season TEXT NOT NULL, fetched_at TEXT NOT NULL, PRIMARY KEY (profile_id, season));
 `
 
 export interface AggFilter {
@@ -186,6 +192,38 @@ export function openDb(path: string) {
     },
     latestMatch(): { matchId: string; lastAt: string } | null {
       return (db.prepare(`SELECT match_id matchId, max(played_at) lastAt FROM rounds GROUP BY match_id ORDER BY lastAt DESC LIMIT 1`).get() as never) ?? null
+    },
+
+    /** Replaces one player's Ubisoft operator stats for the given seasons and marks them fetched. */
+    saveApiOpStats(profileId: string, seasons: string[], rows: { season: string; playlist: string; opKey: string; rounds: number; wins: number }[], at: string): void {
+      tx(() => {
+        for (const season of seasons) {
+          db.prepare(`DELETE FROM api_op_stats WHERE profile_id = ? AND season = ?`).run(profileId, season)
+          db.prepare(`INSERT OR REPLACE INTO api_op_fetch VALUES (?, ?, ?)`).run(profileId, season, at)
+        }
+        const ins = db.prepare(`INSERT OR REPLACE INTO api_op_stats VALUES (?,?,?,?,?,?)`)
+        for (const r of rows) ins.run(profileId, r.season, r.playlist, r.opKey, r.rounds, r.wins)
+      })
+    },
+    apiFetchedAt(profileId: string, season: string): string | null {
+      return (db.prepare(`SELECT fetched_at f FROM api_op_fetch WHERE profile_id = ? AND season = ?`).get(profileId, season) as { f: string } | undefined)?.f ?? null
+    },
+    /** Ubisoft per-operator aggregates. `profileId` = one player; `excludeProfileId` = everyone else (meta). */
+    apiOpAggs(f: { profileId?: string; excludeProfileId?: string; season: string; playlist?: string }): Map<string, { rounds: number; wins: number; players: number }> {
+      const where = ['season = ?']
+      const args: string[] = [f.season]
+      if (f.profileId) { where.push('profile_id = ?'); args.push(f.profileId) }
+      if (f.excludeProfileId) { where.push('profile_id != ?'); args.push(f.excludeProfileId) }
+      if (f.playlist) { where.push('playlist = ?'); args.push(f.playlist) }
+      const rows = db.prepare(`SELECT op_key k, sum(rounds) rounds, sum(wins) wins, count(DISTINCT profile_id) players
+        FROM api_op_stats WHERE ${where.join(' AND ')} GROUP BY op_key`).all(...args) as { k: string; rounds: number; wins: number; players: number }[]
+      return new Map(rows.map(({ k, ...a }) => [k, a]))
+    },
+    apiPlayerCount(season: string, excludeProfileId?: string): number {
+      return (db.prepare(`SELECT count(DISTINCT profile_id) n FROM api_op_stats WHERE season = ? AND profile_id != ?`).get(season, excludeProfileId ?? '') as { n: number }).n
+    },
+    apiSeasons(profileId: string): string[] {
+      return (db.prepare(`SELECT DISTINCT season FROM api_op_stats WHERE profile_id = ? ORDER BY season DESC`).all(profileId) as { season: string }[]).map((r) => r.season)
     },
 
     getJson<T>(key: string): T | undefined {
