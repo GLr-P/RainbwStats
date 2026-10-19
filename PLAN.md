@@ -80,19 +80,19 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 
 ### Phase 0 — Foundation
 - [x] Research data sources (above)
-- [ ] Repo, MIT license, README (with ToS / safety disclaimer), CLAUDE.md
-- [ ] Scaffold: electron-vite + React + TS strict, vitest, `npm run check` (typecheck + tests)
-- [ ] CI workflow on windows-latest
-- [ ] Public GitHub repo, first push
+- [x] Repo, MIT license, README (with ToS / safety disclaimer), CLAUDE.md
+- [x] Scaffold: electron-vite + React + TS strict, vitest, `npm run check` (typecheck + tests)
+- [x] CI workflow on windows-latest
+- [x] Public GitHub repo, first push
 - DoD: `npm run check` passes locally and in CI; `npm run dev` opens a window.
 
 ### Phase 1 — Replay parser + local stats DB
-- [ ] Port r6-dissect header/player/feedback/scoreboard parsing to `src/main/replay/` (unknown IDs never throw)
-- [ ] Operator/map/site ID tables in shared seed data (overridable by remote dataset)
-- [ ] Investigate ban data in the Y11S3 fixture
-- [ ] SQLite schema: matches, rounds, round_players, players, rank_snapshots, op_agg (materialized)
-- [ ] Ingest a folder of replays idempotently (by match ID + round)
-- [ ] Auto-detect game folder (Steam libraryfolders.vdf + Ubisoft Connect registry + settings override)
+- [x] Port r6-dissect header/player/feedback/scoreboard parsing to `src/main/replay/` (unknown IDs never throw)
+- [x] Operator/map/site ID tables in shared seed data (overridable by remote dataset)
+- [x] Investigate ban data in the Y11S3 fixture → **no ban fields in Y11S3 header props**; bans need OCR (ban screen) or crowd data
+- [x] SQLite schema: matches, rounds, round_players, players, rank_snapshots, op_agg (materialized)
+- [x] Ingest a folder of replays idempotently (by match ID + round)
+- [x] Auto-detect game folder (Steam libraryfolders.vdf + Ubisoft Connect registry + settings override)
 - DoD: parses the local Y11S3 replay (6 rounds) with correct map/site/ops/winner; ingest twice = no dupes; parse < 100 ms per round.
 
 ### Phase 2 — Ubisoft API client
@@ -170,6 +170,8 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 ## 6. Verification log
 | Date | Phase | Result |
 |---|---|---|
+| 2026-10-19 | 0 | check ✅ (tsc + 1 test), smoke ✅ `SMOKE OK`, pushed to GLr-P/RainbwStats |
+| 2026-10-19 | 1 | check ✅ 13 tests. Local Y11S3 replay: 6/6 rounds parsed in 33–79 ms (header-only ~ same; zstd dominates). Found new Plane world ID 439976373310. Rauora confirmed attacker. Winner from score delta, one winner per round ✅. Ingest idempotent ✅. Game dir auto-detected (Steam) ✅ |
 
 ## 7. User checks (things I can't verify myself)
 - [ ] Enable Match Replay in Siege settings (if not already) so every match is recorded

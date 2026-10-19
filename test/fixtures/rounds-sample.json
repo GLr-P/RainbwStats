@@ -1,0 +1,454 @@
+[
+ {
+  "matchId": "fixture-match-1",
+  "round": 1,
+  "playedAt": "2026-09-05T22:07:48Z",
+  "gameVersion": "Y11S3_Alpha04",
+  "season": "Y11S3",
+  "matchType": 4,
+  "mapKey": "plane",
+  "site": "2F Meeting Room, 2F Executive Office",
+  "recordingProfileId": "00000000-0000-4000-8000-000000000001",
+  "players": [
+   {
+    "profileId": "00000000-0000-4000-8000-000000000001",
+    "username": "Player01",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "92270642539",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000002",
+    "username": "Player02",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "104189664038",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000003",
+    "username": "Player03",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "92270644267",
+    "won": false,
+    "kills": 1,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000004",
+    "username": "Player04",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "92270644241",
+    "won": true,
+    "kills": 0,
+    "died": false,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000005",
+    "username": "Player05",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "104189664155",
+    "won": true,
+    "kills": 2,
+    "died": false,
+    "headshots": 1
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000006",
+    "username": "Player06",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "92270644007",
+    "won": true,
+    "kills": 1,
+    "died": true,
+    "headshots": 0
+   }
+  ]
+ },
+ {
+  "matchId": "fixture-match-1",
+  "round": 2,
+  "playedAt": "2026-09-05T22:10:29Z",
+  "gameVersion": "Y11S3_Alpha04",
+  "season": "Y11S3",
+  "matchType": 4,
+  "mapKey": "plane",
+  "site": "1F Cargo Hold, 1F Luggage Hold",
+  "recordingProfileId": "00000000-0000-4000-8000-000000000001",
+  "players": [
+   {
+    "profileId": "00000000-0000-4000-8000-000000000001",
+    "username": "Player01",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "291191151607",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000002",
+    "username": "Player02",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "92270644189",
+    "won": false,
+    "kills": 2,
+    "died": true,
+    "headshots": 1
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000003",
+    "username": "Player03",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "92270642474",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000004",
+    "username": "Player04",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "373711624351",
+    "won": true,
+    "kills": 3,
+    "died": false,
+    "headshots": 1
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000005",
+    "username": "Player05",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "92270642318",
+    "won": true,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000006",
+    "username": "Player06",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "409899350403",
+    "won": true,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   }
+  ]
+ },
+ {
+  "matchId": "fixture-match-1",
+  "round": 3,
+  "playedAt": "2026-09-05T22:14:54Z",
+  "gameVersion": "Y11S3_Alpha04",
+  "season": "Y11S3",
+  "matchType": 4,
+  "mapKey": "plane",
+  "site": "2F Staff Section, 2F Executive Bedroom",
+  "recordingProfileId": "00000000-0000-4000-8000-000000000001",
+  "players": [
+   {
+    "profileId": "00000000-0000-4000-8000-000000000001",
+    "username": "Player01",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "374667787816",
+    "won": false,
+    "kills": 1,
+    "died": true,
+    "headshots": 1
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000002",
+    "username": "Player02",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "92270644267",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000003",
+    "username": "Player03",
+    "teamIndex": 0,
+    "side": "attack",
+    "operatorId": "104189663024",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000004",
+    "username": "Player04",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "104189663803",
+    "won": true,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000005",
+    "username": "Player05",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "92270642214",
+    "won": true,
+    "kills": 3,
+    "died": false,
+    "headshots": 1
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000006",
+    "username": "Player06",
+    "teamIndex": 1,
+    "side": "defense",
+    "operatorId": "92270642266",
+    "won": true,
+    "kills": 0,
+    "died": false,
+    "headshots": 0
+   }
+  ]
+ },
+ {
+  "matchId": "fixture-match-1",
+  "round": 4,
+  "playedAt": "2026-09-05T22:19:16Z",
+  "gameVersion": "Y11S3_Alpha04",
+  "season": "Y11S3",
+  "matchType": 4,
+  "mapKey": "plane",
+  "site": "2F Staff Section, 2F Executive Bedroom",
+  "recordingProfileId": "00000000-0000-4000-8000-000000000001",
+  "players": [
+   {
+    "profileId": "00000000-0000-4000-8000-000000000001",
+    "username": "Player01",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "104189664704",
+    "won": true,
+    "kills": 2,
+    "died": false,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000002",
+    "username": "Player02",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "92270644163",
+    "won": true,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000003",
+    "username": "Player03",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "104189662920",
+    "won": true,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000004",
+    "username": "Player04",
+    "teamIndex": 1,
+    "side": "attack",
+    "operatorId": "104189661965",
+    "won": false,
+    "kills": 1,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000005",
+    "username": "Player05",
+    "teamIndex": 1,
+    "side": "attack",
+    "operatorId": "386098331923",
+    "won": false,
+    "kills": 1,
+    "died": true,
+    "headshots": 0
+   }
+  ]
+ },
+ {
+  "matchId": "fixture-match-1",
+  "round": 5,
+  "playedAt": "2026-09-05T22:22:03Z",
+  "gameVersion": "Y11S3_Alpha04",
+  "season": "Y11S3",
+  "matchType": 4,
+  "mapKey": "plane",
+  "site": "2F Meeting Room, 2F Executive Office",
+  "recordingProfileId": "00000000-0000-4000-8000-000000000001",
+  "players": [
+   {
+    "profileId": "00000000-0000-4000-8000-000000000001",
+    "username": "Player01",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "92270644007",
+    "won": true,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000002",
+    "username": "Player02",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "104189663698",
+    "won": true,
+    "kills": 1,
+    "died": false,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000003",
+    "username": "Player03",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "161289666230",
+    "won": true,
+    "kills": 1,
+    "died": false,
+    "headshots": 1
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000004",
+    "username": "Player04",
+    "teamIndex": 1,
+    "side": "attack",
+    "operatorId": "104189664038",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000005",
+    "username": "Player05",
+    "teamIndex": 1,
+    "side": "attack",
+    "operatorId": "104189663024",
+    "won": false,
+    "kills": 1,
+    "died": true,
+    "headshots": 1
+   }
+  ]
+ },
+ {
+  "matchId": "fixture-match-1",
+  "round": 6,
+  "playedAt": "2026-09-05T22:25:36Z",
+  "gameVersion": "Y11S3_Alpha04",
+  "season": "Y11S3",
+  "matchType": 4,
+  "mapKey": "plane",
+  "site": "1F Cargo Hold, 1F Luggage Hold",
+  "recordingProfileId": "00000000-0000-4000-8000-000000000001",
+  "players": [
+   {
+    "profileId": "00000000-0000-4000-8000-000000000001",
+    "username": "Player01",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "291437347686",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000002",
+    "username": "Player02",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "92270644319",
+    "won": false,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000003",
+    "username": "Player03",
+    "teamIndex": 0,
+    "side": "defense",
+    "operatorId": "104189663698",
+    "won": false,
+    "kills": 1,
+    "died": true,
+    "headshots": 1
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000004",
+    "username": "Player04",
+    "teamIndex": 1,
+    "side": "attack",
+    "operatorId": "92270642032",
+    "won": true,
+    "kills": 1,
+    "died": false,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000005",
+    "username": "Player05",
+    "teamIndex": 1,
+    "side": "attack",
+    "operatorId": "92270642136",
+    "won": true,
+    "kills": 0,
+    "died": true,
+    "headshots": 0
+   },
+   {
+    "profileId": "00000000-0000-4000-8000-000000000006",
+    "username": "Player06",
+    "teamIndex": 1,
+    "side": "attack",
+    "operatorId": "104189663024",
+    "won": true,
+    "kills": 3,
+    "died": true,
+    "headshots": 2
+   }
+  ]
+ }
+]

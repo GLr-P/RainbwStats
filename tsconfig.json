@@ -13,6 +13,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "erasableSyntaxOnly": true,
     "types": ["node", "vite/client"]
   },
   "include": ["src/**/*", "test/**/*", "*.config.ts"]
