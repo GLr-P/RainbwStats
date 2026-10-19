@@ -178,11 +178,12 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 | 2026-10-19 | 5 | check ✅ 35 tests. Simulated replay drops (real Y11S3 files copied into a watched dir): file → LiveState in **181–262 ms** (budget 300). Side prediction + match-end (incl. OT) tested |
 | 2026-10-19 | 6 | Windows OCR worker verified on this PC: boot 0.4 s, **24 ms/frame**, read CLUBHOUSE/DEFENSE/site correctly from a rendered frame. Matcher tests incl. OCR noise + no false positives. Real in-game frames untested (user check) |
 | 2026-10-19 | 4 | Screenshot review of every page found + fixed: misleading side tags, stale header side after match end, inflated pick rate in 3v3 (now exact team-rounds), baseline shown as win %, op chips overflowing, all-ops score penalty (now neutral 50 for no data) |
+| 2026-10-19 | 7.1 | v0.1.1: Simulate last match (tested: phases loading→match→ended). v0.1.2: sign in via Ubisoft's official page (no password stored; Steam not offered by Ubisoft), session exchange + remember-me refresh + silent re-login + exchange-refused fallback (45 tests); real Electron self-test of both capture paths ✅ (`npm run selftest`); found + fixed ERR_FAILED when a login window opens right after another closes. Visible auto-update: 30-min checks, Settings panel, restart banner hidden during matches |
 | 2026-10-19 | 7 | NSIS + portable built locally; packaged exe passes smoke (node:sqlite, updater, tray in asar). Self-review found + fixed: first-run import blocking UI (now async), watcher never starting if MatchReplay created later. Pages enabled. CI/Release workflows written; GitHub Actions degraded today so runs queued |
 
 ## 7. User checks (things I can't verify myself)
 - [ ] Enable Match Replay in Siege settings (if not already) so every match is recorded
-- [ ] Log in with a Ubisoft account in Settings (Phase 2)
+- [ ] Settings → Sign in with Ubisoft (Xbox/PSN/Facebook/email), then Live → Simulate last match: lobby should show real ranks
 - [ ] Play one match with the app open and report what the Live page showed (Phase 5/6)
 - [ ] Optional: enable OCR in Settings and check it reads the map before round 1 (borderless window mode is most reliable)
 - [ ] For Phase 8 (global database): create a free Cloudflare account and run `npx wrangler login` once

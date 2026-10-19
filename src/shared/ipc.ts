@@ -107,6 +107,7 @@ export interface AppStatus {
   players: number
   lastIngest: string | null
   loggedIn: boolean
+  loginMethod: 'password' | 'web' | null
   myProfileId: string | null
   myName: string | null
   datasetVersion: string | null
@@ -114,6 +115,15 @@ export interface AppStatus {
 }
 
 export interface AuthResult { ok: boolean; twoFactor?: boolean; error?: string }
+
+export interface UpdateStatus {
+  state: 'idle' | 'checking' | 'upToDate' | 'downloading' | 'ready' | 'error' | 'unsupported'
+  current: string
+  next?: string
+  percent?: number
+  checkedAt?: string
+  error?: string
+}
 
 export interface PlayerLookup { card: PlayerCard | null; history: { seasonId: number; board: string; rank: number; rankPoints: number; maxRank: number; maxRankPoints: number; wins: number; losses: number; kills: number; deaths: number }[]; encounters: number; error?: string }
 
@@ -137,10 +147,16 @@ export interface RsApi {
   simulate(): Promise<boolean>
   /** Dataset + learned operators, so the renderer catalog matches main. */
   catalog(): Promise<CatalogOverrides>
+  /** Opens Ubisoft's own login page (Xbox / PlayStation / Facebook / email). */
+  loginWithUbisoft(): Promise<AuthResult>
+  updateStatus(): Promise<UpdateStatus>
+  checkForUpdates(): Promise<UpdateStatus>
+  installUpdate(): Promise<void>
+  onUpdate(cb: (s: UpdateStatus) => void): () => void
   onLive(cb: (s: LiveState) => void): () => void
 }
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate'
-] as const satisfies readonly Exclude<keyof RsApi, 'onLive'>[]
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'updateStatus', 'checkForUpdates', 'installUpdate'
+] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate'>[]

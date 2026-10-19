@@ -1,7 +1,7 @@
 {
   "name": "rainbwstats",
   "productName": "RainbwStats",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Ad-free Rainbow Six Siege companion: live lobby stats, operator analytics and roster-aware recommendations.",
   "license": "MIT",
   "author": "GLr-P",
@@ -18,7 +18,8 @@
     "dist": "electron-vite build && electron-builder --win --publish never",
     "release": "electron-vite build && electron-builder --win --publish always",
     "export-dataset": "tsx scripts/export-dataset.ts",
-    "shots": "electron-vite build && node scripts/run.mjs electron . --smoke --demo=test/fixtures/rounds-sample.json --shots=site/img"
+    "shots": "electron-vite build && node scripts/run.mjs electron . --smoke --demo=test/fixtures/rounds-sample.json --shots=site/img",
+    "selftest": "electron-vite build && node scripts/run.mjs electron . --smoke --selftest-weblogin"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

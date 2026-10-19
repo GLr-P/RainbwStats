@@ -17,12 +17,21 @@ export interface Session {
   profileId: string
   nameOnPlatform?: string
   rememberMeTicket?: string
+  /** App id the ticket belongs to when it is not ours (web sign-in fallback). */
+  appId?: string
 }
 
 export interface StoredAuth {
   base?: Session
   advanced?: Session
+  /** Long-lived remember-me ticket and the Ubisoft app it belongs to (ours, or the web login's). */
+  remember?: { ticket: string; appId: string }
+  /** How the user signed in, for the UI. */
+  method?: 'password' | 'web'
 }
+
+/** A session captured from Ubisoft's own login page (any Ubisoft app id). */
+export interface WebSession { ticket: string; appId: string; rememberMeTicket?: string }
 
 export interface Credentials { email: string; password: string }
 
@@ -32,6 +41,8 @@ export interface UbiDeps {
   loadCredentials: () => Credentials | null
   loadAuth: () => StoredAuth
   saveAuth: (a: StoredAuth) => void
+  /** Optional silent re-login (e.g. hidden Ubisoft login window with saved cookies). */
+  reauth?: () => Promise<WebSession | null>
 }
 
 export class UbiError extends Error {
@@ -88,10 +99,13 @@ export class UbiClient {
   constructor(deps: UbiDeps) {
     this.d = deps
     this.auth = deps.loadAuth()
+    // Migrate v0.1.0 storage: remember-me lived on the base session.
+    if (!this.auth.remember && this.auth.base?.rememberMeTicket) this.auth.remember = { ticket: this.auth.base.rememberMeTicket, appId: UBI.appId }
   }
 
   get profileId(): string | undefined { return this.auth.base?.profileId }
   get loggedIn(): boolean { return !!this.auth.base }
+  get method(): StoredAuth['method'] { return this.auth.method }
   /** True when a request can authenticate (session or stored credentials). */
   get canAuth(): boolean { return this.loggedIn || this.d.loadCredentials() !== null }
 
@@ -119,7 +133,7 @@ export class UbiClient {
       this.pending2fa = s(body['twoFactorAuthenticationTicket'])
       return 'twoFactor'
     }
-    this.setBase(toSession(body))
+    this.setBase(toSession(body), 'password', UBI.appId)
     return 'ok'
   }
 
@@ -127,24 +141,49 @@ export class UbiClient {
     if (!this.pending2fa) throw new UbiError('twoFactor', 'no pending two-factor login')
     const body = await this.postSession(`ubi_2fa_v1 t=${this.pending2fa}`, UBI.appId, { 'Ubi-2FACode': code.trim() })
     this.pending2fa = null
-    this.setBase(toSession(body))
+    this.setBase(toSession(body), 'password', UBI.appId)
+  }
+
+  /** Signs in with a session captured from Ubisoft's own login page (Xbox/PSN/Facebook/email).
+   *  The web ticket is exchanged for a session of our app id, like the advanced session. */
+  async adoptWebSession(web: WebSession): Promise<void> {
+    let own: Session | null = null
+    if (web.appId !== UBI.appId) {
+      try { own = toSession(await this.postSession(`Ubi_v1 t=${web.ticket}`, UBI.appId)) } catch (e) {
+        if (e instanceof UbiError && e.code === 'rateLimited') throw e
+        // Exchange refused: keep using the web session under its own app id.
+      }
+    }
+    const sess = own ?? { ticket: web.ticket, sessionId: '', expiration: new Date(this.d.now() + 2.5 * 3600_000).toISOString(), profileId: '', appId: web.appId }
+    this.setBase(sess, 'web', web.appId, web.rememberMeTicket)
   }
 
   logout(): void { this.auth = {}; this.d.saveAuth(this.auth) }
 
-  private setBase(sess: Session): void {
-    this.auth = { base: sess }
+  private setBase(sess: Session, method?: StoredAuth['method'], rememberAppId?: string, rememberTicket?: string): void {
+    const ticket = rememberTicket ?? sess.rememberMeTicket
+    const remember = ticket && rememberAppId ? { ticket, appId: rememberAppId } : this.auth.remember
+    this.auth = { base: sess, remember, method: method ?? this.auth.method }
     this.d.saveAuth(this.auth)
   }
 
-  /** Valid base session: cached → remember-me refresh → stored credentials. */
+  /** Valid base session: cached → remember-me refresh → silent re-login → stored credentials. */
   private async baseSession(): Promise<Session> {
     if (this.valid(this.auth.base)) return this.auth.base!
-    const rm = this.auth.base?.rememberMeTicket
+    const rm = this.auth.remember
     if (rm) {
-      try { this.setBase({ ...toSession(await this.postSession(`rm_v1 t=${rm}`, UBI.appId)), rememberMeTicket: rm }); return this.auth.base! } catch (e) {
+      try {
+        const fresh = toSession(await this.postSession(`rm_v1 t=${rm.ticket}`, rm.appId))
+        if (rm.appId === UBI.appId) this.setBase(fresh, undefined, rm.appId, fresh.rememberMeTicket ?? rm.ticket)
+        else await this.adoptWebSession({ ticket: fresh.ticket, appId: rm.appId, rememberMeTicket: fresh.rememberMeTicket ?? rm.ticket })
+        return this.auth.base!
+      } catch (e) {
         if (e instanceof UbiError && e.code === 'rateLimited') throw e
       }
+    }
+    if (this.auth.method === 'web' && this.d.reauth) {
+      const web = await this.d.reauth().catch(() => null)
+      if (web) { await this.adoptWebSession(web); return this.auth.base! }
     }
     const creds = this.d.loadCredentials()
     if (!creds) throw new UbiError('noCredentials', 'Log in with your Ubisoft account in Settings')
@@ -170,7 +209,7 @@ export class UbiClient {
     const sess = advanced ? await this.advancedSession() : await this.baseSession()
     const res = await this.d.fetch(UBI.base + path, {
       headers: {
-        Authorization: `Ubi_v1 t=${sess.ticket}`, 'Ubi-AppId': advanced ? UBI.advancedAppId : UBI.appId,
+        Authorization: `Ubi_v1 t=${sess.ticket}`, 'Ubi-AppId': advanced ? UBI.advancedAppId : sess.appId ?? UBI.appId,
         'Ubi-SessionId': sess.sessionId, 'Ubi-LocaleCode': 'en-us', 'User-Agent': UBI.userAgent
       }
     })

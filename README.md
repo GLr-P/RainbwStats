@@ -16,7 +16,7 @@ Ad-free, open-source Rainbow Six Siege X companion for Windows.
 | Source | Used for |
 |---|---|
 | Siege's own **Match Replay** files on your disk | Map, site, every player's operator per round, outcomes |
-| Ubisoft services, using **your** Ubisoft login | Ranks, RP, K/D, W/L for players in your lobby |
+| Ubisoft services, after you sign in on **Ubisoft's own login page** (Xbox / PlayStation / Facebook / email) | Ranks, RP, K/D, W/L for players in your lobby |
 | Screen OCR (optional) | Map and side before round 1 |
 
 RainbwStats **never reads or modifies game memory** and never injects anything into the game. It only
@@ -28,7 +28,7 @@ reads files Siege writes to disk and, optionally, your screen, the same way OBS 
 
 Not affiliated with or endorsed by Ubisoft. Rainbow Six Siege is a trademark of Ubisoft Entertainment.
 The Ubisoft services API is unofficial and may change. Consider logging in with an alternate account.
-Your credentials are encrypted with Windows DPAPI and are only ever sent to Ubisoft.
+Signing in happens on Ubisoft's official page inside the app; RainbwStats only keeps the resulting session (encrypted with Windows DPAPI), never a password. Ubisoft doesn't offer Steam sign-in. Ban safety: the game and BattlEye never interact with the app (no memory access, no injection, no input automation), and Ubisoft API use is a handful of cached, batched requests per match, the same calls the official stats website makes.
 
 ## Development
 

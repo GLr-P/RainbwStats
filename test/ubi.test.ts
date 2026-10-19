@@ -78,7 +78,7 @@ describe('ubi client', () => {
     const { c, saved } = client(m.f, { base: expired })
     await c.profilesByIds([P1])
     expect(auth(m.calls[0]!)).toBe('rm_v1 t=rm1')
-    expect(saved().base?.rememberMeTicket).toBe('rm1')
+    expect(saved().remember?.ticket).toBe('rm1')
   })
 
   it('reports missing credentials and rate limits as typed errors', async () => {
@@ -135,5 +135,72 @@ describe('ranks', () => {
     expect(rankName(36)).toBe('Champion')
     expect(seasonCodeToId('Y11S3')).toBe(43)
     expect(seasonIdToCode(43)).toBe('Y11S3')
+  })
+})
+
+import { sessionFromBody, sessionFromHeaders } from '../src/main/ubi/websession'
+import { UBI } from '../src/main/ubi/client'
+
+const WEB = '314d4fef-e568-454a-ae06-43e3bece12a6'
+const appIdOf = (c: Call) => (c.init?.headers as Record<string, string>)['Ubi-AppId']
+
+describe('ubisoft web sign-in', () => {
+  it('parses captured sessions from bodies and headers', () => {
+    expect(sessionFromBody(JSON.stringify({ ticket: 't', rememberMeTicket: 'rm' }), WEB)).toEqual({ ticket: 't', appId: WEB, rememberMeTicket: 'rm' })
+    expect(sessionFromBody('{"error":1}', WEB)).toBeNull()
+    expect(sessionFromBody('not json', WEB)).toBeNull()
+    expect(sessionFromHeaders({ Authorization: 'Ubi_v1 t=abc', 'Ubi-AppId': WEB })).toEqual({ ticket: 'abc', appId: WEB })
+    expect(sessionFromHeaders({ authorization: 'Basic x', 'ubi-appid': WEB })).toBeNull()
+  })
+
+  it('exchanges a web ticket for our own session and refreshes via the web remember-me', async () => {
+    const m = mockFetch((c) => (c.url.endsWith('/sessions') ? { body: session(auth(c).startsWith('rm_v1') ? 'webFresh' : 'own' + Math.random(), { rememberMeTicket: auth(c).startsWith('rm_v1') ? 'rm2' : undefined }) } : { body: { profiles: [] } }))
+    let now = NOW
+    let saved: StoredAuth = {}
+    const c = new UbiClient({ fetch: m.f, now: () => now, loadAuth: () => saved, saveAuth: (a) => { saved = a }, loadCredentials: () => null })
+    await c.adoptWebSession({ ticket: 'webT', appId: WEB, rememberMeTicket: 'rm1' })
+    expect(auth(m.calls[0]!)).toBe('Ubi_v1 t=webT')
+    expect(appIdOf(m.calls[0]!)).toBe(UBI.appId)
+    expect(saved.method).toBe('web')
+    expect(saved.remember).toEqual({ ticket: 'rm1', appId: WEB })
+    expect(c.canAuth).toBe(true)
+    now += 4 * 3600_000 // session expired
+    m.calls.length = 0
+    await c.profilesByIds([P1])
+    expect(auth(m.calls[0]!)).toBe('rm_v1 t=rm1')
+    expect(appIdOf(m.calls[0]!)).toBe(WEB) // remember-me belongs to the web app id
+    expect(auth(m.calls[1]!)).toBe('Ubi_v1 t=webFresh') // exchanged again
+    expect(saved.remember?.ticket).toBe('rm2')
+  })
+
+  it('falls back to silent re-login when remember-me is gone', async () => {
+    const m = mockFetch((c) => (c.url.endsWith('/sessions') ? { body: session('own') } : { body: { profiles: [] } }))
+    let saved: StoredAuth = { method: 'web', base: { ...session('old'), expiration: later(-1) } }
+    let reauths = 0
+    const c = new UbiClient({ fetch: m.f, now: () => NOW, loadAuth: () => saved, saveAuth: (a) => { saved = a }, loadCredentials: () => null, reauth: async () => { reauths++; return { ticket: 'silent', appId: WEB } } })
+    await c.profilesByIds([P1])
+    expect(reauths).toBe(1)
+    expect(auth(m.calls[0]!)).toBe('Ubi_v1 t=silent')
+  })
+
+  it('migrates v0.1.0 storage (remember-me on the base session)', async () => {
+    const m = mockFetch((c) => (c.url.endsWith('/sessions') ? { body: session('new') } : { body: { profiles: [] } }))
+    const { c } = client(m.f, { base: { ...session('old', { rememberMeTicket: 'legacy' }), expiration: later(-1) } }, false)
+    await c.profilesByIds([P1])
+    expect(auth(m.calls[0]!)).toBe('rm_v1 t=legacy')
+  })
+})
+
+describe('web sign-in fallback', () => {
+  it('keeps the web session (and its app id) if Ubisoft refuses the exchange', async () => {
+    const m = mockFetch((c) => (c.url.endsWith('/sessions') ? { status: 401, body: { message: 'nope' } } : { body: { profiles: [{ profileId: P1, nameOnPlatform: 'Me' }] } }))
+    let saved: StoredAuth = {}
+    const c = new UbiClient({ fetch: m.f, now: () => NOW, loadAuth: () => saved, saveAuth: (a) => { saved = a }, loadCredentials: () => null })
+    await c.adoptWebSession({ ticket: 'webT', appId: WEB })
+    expect(c.loggedIn).toBe(true)
+    expect((await c.profilesByIds([P1]))[0]?.name).toBe('Me')
+    const get = m.calls.find((x) => x.url.includes('/v3/profiles?'))!
+    expect(auth(get)).toBe('Ubi_v1 t=webT')
+    expect(appIdOf(get)).toBe(WEB)
   })
 })

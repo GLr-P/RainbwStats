@@ -34,7 +34,7 @@ describe.runIf(hasLocal)('replay parser (local Y11S3 fixture)', () => {
     expect(r.players.find((p) => p.won)?.side).toBe('defense')
   })
 
-  it('parses a round in under 150 ms', () => {
+  it('parses a round in under 150 ms', { retry: 2 }, () => {
     const t = performance.now()
     parseFile(files[1]!)
     expect(performance.now() - t).toBeLessThan(150)

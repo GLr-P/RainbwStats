@@ -1,9 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, Tray } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import type { RoundRecord } from '../shared/types'
 import { demoLobby } from './demo'
+import { Updater } from './updater'
+import { ubisoftWebLogin } from './ubi/weblogin'
 import { join } from 'node:path'
-import updater from 'electron-updater'
 import { openDb } from './db'
 import { SettingsStore } from './settings'
 import { SecureStore } from './secure'
@@ -46,6 +47,11 @@ function createWindow(s: Settings): BrowserWindow {
 app.on('second-instance', () => { win?.show(); win?.focus() })
 
 app.whenReady().then(async () => {
+  if (process.argv.includes('--selftest-weblogin')) {
+    const { selftestWebLogin } = await import('./selftest')
+    app.exit((await selftestWebLogin()) ? 0 : 1)
+    return
+  }
   // --demo=<rounds.json>: isolated profile seeded with scrubbed sample rounds (for public screenshots).
   const demo = process.argv.find((a) => a.startsWith('--demo='))?.slice(7)
   const dataDir = demo ? join(app.getPath('temp'), `rainbwstats-demo-${Date.now()}`) : isSmoke ? join(app.getPath('temp'), 'rainbwstats-smoke') : app.getPath('userData')
@@ -57,7 +63,8 @@ app.whenReady().then(async () => {
   else if (!settings.get().gameDir) settings.set({ gameDir: findGameDirs()[0] ?? null })
   const secure = new SecureStore(dataDir)
   const dataset = new DatasetStore(dataDir)
-  const ubi = new UbiClient({ fetch, now: Date.now, loadCredentials: secure.loadCredentials, loadAuth: secure.loadAuth, saveAuth: secure.saveAuth })
+  const ubi = new UbiClient({ fetch, now: Date.now, loadCredentials: secure.loadCredentials, loadAuth: secure.loadAuth, saveAuth: secure.saveAuth,
+    reauth: () => ubisoftWebLogin({ silent: true }) })
   const ctx: Ctx = { db, settings: () => settings.get(), dataset: () => dataset.get(), me: () => ubi.profileId ?? db.mostCommonRecorder() }
   const lobby = demo ? demoLobby() : new LobbyService(ubi, db)
   const replayRoot = () => (settings.get().gameDir ? replayRootOf(settings.get().gameDir!) : null)
@@ -73,20 +80,21 @@ app.whenReady().then(async () => {
   if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
   void dataset.refresh(settings.get().datasetUrl).then((changed) => changed && engine.refresh())
   // Installer builds update themselves from GitHub Releases (downloaded in background, applied on quit).
-  if (app.isPackaged && !isSmoke && !process.env['PORTABLE_EXECUTABLE_DIR']) void updater.autoUpdater.checkForUpdatesAndNotify().catch(() => undefined)
+  const updates = new Updater((s) => win?.webContents.send('rs:update', s))
+  if (!isSmoke) updates.start()
 
   const status = (): AppStatus => {
     const root = replayRoot()
     const me = ctx.me()
     return {
       replayRoot: root, replayRootExists: !!root && existsSync(root), watching: engine.watching, ...db.counts(),
-      lastIngest: engine.lastIngest, loggedIn: ubi.loggedIn, myProfileId: me, myName: me ? db.playerName(me) : null,
+      lastIngest: engine.lastIngest, loggedIn: ubi.loggedIn, loginMethod: ubi.method ?? null, myProfileId: me, myName: me ? db.playerName(me) : null,
       datasetVersion: dataset.get().version, version: app.getVersion()
     }
   }
   const authErr = (e: unknown): AuthResult => ({ ok: false, error: e instanceof Error ? e.message : String(e) })
 
-  const api: Omit<RsApi, 'onLive'> = {
+  const api: Omit<RsApi, 'onLive' | 'onUpdate'> = {
     status: async () => status(),
     getSettings: async () => settings.get(),
     setSettings: async (patch) => {
@@ -114,7 +122,19 @@ app.whenReady().then(async () => {
     submitTwoFactor: async (code) => {
       try { await ubi.submitTwoFactor(code); void ubi.warm().catch(() => undefined); return { ok: true } } catch (e) { return authErr(e) }
     },
-    logout: async () => { ubi.logout(); secure.clear() },
+    logout: async () => { ubi.logout(); secure.clear(); await session.fromPartition('persist:ubisoft-login').clearStorageData() },
+    loginWithUbisoft: async () => {
+      try {
+        const web = await ubisoftWebLogin({ parent: win ?? undefined })
+        if (!web) return { ok: false, error: 'Sign-in window closed' }
+        await ubi.adoptWebSession(web)
+        void ubi.warm().catch(() => undefined)
+        return { ok: true }
+      } catch (e) { return authErr(e) }
+    },
+    updateStatus: async () => updates.status,
+    checkForUpdates: () => updates.check(),
+    installUpdate: async () => updates.install(),
     opStats: async (f) => opStats(ctx, f),
     meta: async (f) => metaRows(ctx, f),
     sites: async (mapKey) => db.sites(mapKey),

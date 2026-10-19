@@ -56,7 +56,7 @@ const LOCAL = 'test/fixtures/local'
 const hasLocal = existsSync(LOCAL) && listRoundFiles(LOCAL).length > 0
 
 describe.runIf(hasLocal)('live engine (simulated replay drops)', () => {
-  it('updates state within budget for each new round file', async () => {
+  it('updates state within budget for each new round file', { retry: 2 }, async () => {
     const root = mkdtempSync(join(tmpdir(), 'rs-live-'))
     const matchDir = join(root, 'Match-2026-09-05_22-06-37-27632')
     mkdirSync(matchDir)

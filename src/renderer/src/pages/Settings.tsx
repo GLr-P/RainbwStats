@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AppStatus, Settings, ThemeSettings, Weights } from '../../../shared/ipc'
-import { rs } from '../lib'
+import { rs, useData } from '../lib'
 
 const DEFAULT_THEME: ThemeSettings = {
   accent: '#e8b23a', attack: '#d9761c', defense: '#4a93e0', bg: '#0b0e13', surface: '#141922', text: '#e6e9ef',
@@ -19,6 +19,7 @@ export function SettingsPage({ settings: s, update, status, refreshStatus }: { s
   return (
     <div className="settings">
       <Account status={status} refresh={refreshStatus} />
+      <Updates />
 
       <div className="panel">
         <h2>Game & data</h2>
@@ -92,13 +93,20 @@ function Account({ status, refresh }: { status: AppStatus | undefined; refresh: 
     else if (!r.ok) setMsg(r.error ?? 'Login failed')
     else { setNeed2fa(false); setPw(''); setCode(''); refresh() }
   }
+  const [showForm, setShowForm] = useState(false)
   return (
     <div className="panel">
       <h2>Ubisoft account</h2>
       {status?.loggedIn ? (
         <>
-          <div>Connected{status.myName ? ` as ${status.myName}` : ''}.</div>
+          <div>Connected{status.myName ? ` as ${status.myName}` : ''}{status.loginMethod === 'web' ? ' (signed in through Ubisoft, no password stored)' : ''}.</div>
           <div><button className="btn" onClick={() => void rs().logout().then(refresh)}>Log out</button></div>
+        </>
+      ) : !showForm ? (
+        <>
+          <button className="btn primary" disabled={busy} onClick={() => void run(() => rs().loginWithUbisoft())}>{busy ? 'Waiting for Ubisoft…' : 'Sign in with Ubisoft'}</button>
+          <div className="small muted">Opens Ubisoft's official login page. Use <b>Xbox, PlayStation or Facebook</b> if they're linked, or your email. Forgot it? Click <b>Can't log in?</b> there. Ubisoft doesn't offer Steam sign-in. Your Ubisoft email is in the Ubisoft Connect app under Settings → Account.</div>
+          <button className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setShowForm(true)}>Use email & password here instead</button>
         </>
       ) : (
         <form style={{ display: 'flex', flexDirection: 'column', gap: 8 }} onSubmit={(e) => { e.preventDefault(); void run(need2fa ? () => rs().submitTwoFactor(code) : () => rs().login(email, pw)) }}>
@@ -112,7 +120,30 @@ function Account({ status, refresh }: { status: AppStatus | undefined; refresh: 
         </form>
       )}
       {msg && <div className="warn small">{msg}</div>}
-      <div className="small muted">Used only to fetch ranks and K/D for players in your lobby. Your password is encrypted with Windows (DPAPI) and only sent to Ubisoft. An alternate account works fine.</div>
+      <div className="small muted">Optional. Only used to fetch ranks and K/D for players in your lobby. You stay signed in automatically. This is a normal Ubisoft website login, so the game and anti-cheat never see it.</div>
+    </div>
+  )
+}
+
+export function Updates() {
+  const [u, refresh] = useData(() => rs().updateStatus(), [])
+  useEffect(() => rs().onUpdate(() => refresh()), [refresh])
+  if (!u) return null
+  const text = {
+    idle: 'Checks automatically every 30 minutes.', checking: 'Checking…', upToDate: 'You have the latest version.',
+    downloading: `Downloading ${u.next ?? 'update'}… ${u.percent ?? 0}%`, ready: `Version ${u.next} is ready.`,
+    error: `Update check failed: ${u.error ?? 'unknown error'}`, unsupported: 'Auto-update is only available in the installed version (not portable/dev).'
+  }[u.state]
+  return (
+    <div className="panel">
+      <h2>Updates <span className="sub">v{u.current}</span></h2>
+      <div className={u.state === 'error' ? 'warn' : u.state === 'ready' ? 'ok' : 'muted'}>{text}</div>
+      <div className="row">
+        {u.state === 'ready'
+          ? <button className="btn primary" onClick={() => void rs().installUpdate()}>Restart & update</button>
+          : <button className="btn" disabled={u.state === 'checking' || u.state === 'downloading' || u.state === 'unsupported'} onClick={() => void rs().checkForUpdates().then(refresh)}>Check for updates</button>}
+      </div>
+      <div className="small muted">Updates download in the background and install when you close the app.</div>
     </div>
   )
 }

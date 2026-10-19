@@ -6,6 +6,7 @@ import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'
 import './styles.css'
 import { applyCatalogOverrides } from '../../shared/catalog'
+import type { UpdateStatus } from '../../shared/ipc'
 import { Icon, applyTheme, rs, useData, useLive, useSettings } from './lib'
 import { LivePage } from './pages/Live'
 import { RosterPage } from './pages/Roster'
@@ -42,6 +43,8 @@ function App() {
   }, [live?.phase, settings?.autoSwitchToLive])
 
   const inMatch = live?.phase === 'match' || live?.phase === 'loading'
+  const [appUpdate, setAppUpdate] = useState<UpdateStatus | null>(null)
+  useEffect(() => { void rs().updateStatus().then(setAppUpdate); return rs().onUpdate(setAppUpdate) }, [])
   return (
     <div className="app" data-app-ready>
       <nav className="nav" aria-label="Main">
@@ -55,6 +58,12 @@ function App() {
         {inMatch && <div className="dot" title="Match in progress" />}
       </nav>
       <main className="page">
+        {appUpdate?.state === 'ready' && !inMatch && (
+          <div className="panel row" role="status">
+            <span>RainbwStats <b>{appUpdate.next}</b> is ready. It installs when you close the app, or now:</span>
+            <button className="btn primary" onClick={() => void rs().installUpdate()}>Restart now</button>
+          </div>
+        )}
         {!settings || !catalogReady ? null : page === 'live' ? <LivePage live={live} settings={settings} status={status} />
           : page === 'roster' ? <RosterPage settings={settings} update={update} />
           : page === 'ops' ? <OperatorsPage />
