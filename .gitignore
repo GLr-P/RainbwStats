@@ -16,3 +16,6 @@ research/cache/
 
 # Personal notes between the user and Claude
 messages.md
+
+# Screenshots / files the user shares for debugging (may show other players)
+feedback/

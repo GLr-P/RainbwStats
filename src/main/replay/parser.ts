@@ -185,6 +185,8 @@ export type SideLookup = (operatorId: string) => Side | null
 
 export interface ParseOptions {
   sideOf: SideLookup
+  /** Side by operator display name (e.g. "THERMITE"), used when the id is unknown. */
+  sideOfName?: (name: string) => Side | null
   /** Stop after player packets (≈first third of the body). Much faster; no feedback events. */
   headerOnly?: boolean
 }
@@ -370,7 +372,8 @@ export function parseRound(file: Buffer, opts: ParseOptions): ReplayRound {
   // Team roles: majority vote of known operator sides per team.
   const votes = [0, 0] // >0 = attack
   for (const p of players) {
-    const side = opts.sideOf(p.operatorId)
+    // Unknown id (new season / re-issued id): fall back to the operator's display name from the header.
+    const side = opts.sideOf(p.operatorId) ?? (p.roleName ? opts.sideOfName?.(p.roleName) ?? null : null)
     if (side) votes[p.teamIndex]! += side === 'attack' ? 1 : -1
   }
   const net = votes[0]! - votes[1]!

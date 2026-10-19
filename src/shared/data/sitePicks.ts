@@ -218,3 +218,17 @@ export const rankedPool = (): string[] => meta().rankedPool
 
 /** Maps to offer in pickers: the ranked pool when known, else every map. */
 export const pickerMaps = <T extends { key: string }>(all: T[]): T[] => { const pool = rankedPool(); return pool.length ? all.filter((m) => pool.includes(m.key)) : all }
+
+/** Which map a replay site belongs to, from its room names (for map ids the catalog doesn't know yet,
+ *  e.g. reworked maps). Returns null unless one map clearly matches better than every other. */
+export function mapForSite(site: string): string | null {
+  const want = rooms(site).filter((r) => r.length > 2)
+  if (!want.length) return null
+  const keys = new Set([...Object.keys(SEED_SITES), ...Object.keys(meta().maps), ...Object.keys(SITE_PICKS)])
+  const scored = [...keys].map((key) => {
+    const known = new Set([...seedSitesFor(key), ...Object.keys(SITE_PICKS[key]?.sites ?? {})].flatMap(rooms))
+    return { key, score: want.filter((r) => known.has(r)).length }
+  }).sort((a, b) => b.score - a.score)
+  const [best, second] = scored
+  return best && best.score > 0 && best.score > (second?.score ?? 0) ? best.key : null
+}

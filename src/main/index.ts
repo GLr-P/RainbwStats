@@ -286,7 +286,7 @@ app.whenReady().then(async () => {
     },
     simulate: () => engine.simulate(),
     rescan: async () => { await engine.rescan(); return status() },
-    catalog: async () => ({ operators: [...(dataset.get().operators ?? []), ...(db.getJson<NonNullable<CatalogOverrides['operators']>>('learnedOperators') ?? [])], maps: dataset.get().maps }),
+    catalog: async () => ({ operators: [...(dataset.get().operators ?? []), ...(db.getJson<NonNullable<CatalogOverrides['operators']>>('learnedOperators') ?? [])], maps: [...(dataset.get().maps ?? []), ...(db.getJson<NonNullable<CatalogOverrides['maps']>>('learnedMaps') ?? [])] }),
     pickGameDir: async () => {
       const r = await dialog.showOpenDialog(win!, { title: 'Select your Rainbow Six Siege folder', properties: ['openDirectory'] })
       const dir = r.canceled ? null : r.filePaths[0] ?? null
