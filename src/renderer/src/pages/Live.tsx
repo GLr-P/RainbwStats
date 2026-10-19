@@ -121,8 +121,8 @@ function SiteBreakdown({ s }: { s: LiveState }) {
       <h2>By site <span className="sub">top picks per bomb site (sites learned from your replays)</span></h2>
       <div className="sites">
         {s.siteRecs.map((x) => (
-          <div className="site" key={x.site}>
-            <div className="t" title={x.site}>{x.site}</div>
+          <div className="site" key={x.site} style={x.site === s.site ? { outline: '2px solid var(--accent)' } : undefined}>
+            <div className="t" title={x.site}>{x.site}{x.site === s.site && <span className="badge" style={{ marginLeft: 6 }}>this round</span>}</div>
             <ol>{x.recs.map((r) => <li key={r.operatorId}>{r.name}<span>{r.score}%</span></li>)}</ol>
           </div>
         ))}

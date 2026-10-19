@@ -91,7 +91,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
     recommendations: recs,
     outsideRoster: outsideRosterPick(ctx, { mapKey, side, site, teammates }, recs[0]),
     otherSide: otherSidePicks(ctx, mapKey, side, teammates),
-    siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side, 3, teammates),
+    siteRecs: siteRecsFor(ctx, mapKey, side, 3, teammates), // always shown (the current site is highlighted)
     rounds: summaries,
     bans: null, // ban phase is over once a round is recorded
     source: o.override ? 'ocr' : 'replay',
@@ -112,7 +112,7 @@ function overrideOnly(ctx: Ctx, o: BuildOpts): Partial<LiveState> {
     recommendations: first,
     outsideRoster: outsideRosterPick(ctx, { mapKey, side, site }, first[0]),
     otherSide: otherSidePicks(ctx, mapKey, side),
-    siteRecs: site ? [] : siteRecsFor(ctx, mapKey, side),
+    siteRecs: siteRecsFor(ctx, mapKey, side),
     bans: banSuggestions(ctx, mapKey),
     source: o.phase === 'idle' ? 'preview' : 'ocr'
   }
