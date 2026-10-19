@@ -16,7 +16,9 @@ export const DEFAULT_SETTINGS: Settings = {
   autoSwitchToLive: true,
   launchAtLogin: false,
   ocrEnabled: false,
-  datasetUrl: 'https://glr-p.github.io/RainbwStats/data/meta/latest.json'
+  datasetUrl: 'https://glr-p.github.io/RainbwStats/data/meta/latest.json',
+  shareCrowd: false,
+  crowdUrl: 'https://rainbwstats-crowd.nanotechservices.workers.dev'
 }
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)

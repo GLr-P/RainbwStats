@@ -92,6 +92,9 @@ export interface Settings {
   launchAtLogin: boolean
   ocrEnabled: boolean
   datasetUrl: string
+  /** Opt-in: share pseudonymous operator stats with the global crowd database. */
+  shareCrowd: boolean
+  crowdUrl: string
 }
 
 export interface OpStatRow { operatorId: string; name: string; side: Side; agg: Agg }
@@ -124,6 +127,23 @@ export interface AppStatus {
 
 export interface ApiOpRow { opKey: string; name: string; side: Side; rounds: number; wins: number; players: number }
 export interface ApiOps { rows: ApiOpRow[]; players: number; seasons: string[]; current: string; lastError: string | null }
+
+/** Global crowd database view (all RainbwStats users). Without a map: ranked Career stats; with a map: replay rounds. */
+export interface GlobalFilter { band?: number; mapKey?: string; site?: string }
+export interface GlobalMeta {
+  available: boolean
+  season: string
+  generatedAt: number | null
+  players: number
+  rounds: number
+  scope: 'career' | 'replays'
+  rows: { opKey: string; name: string; side: Side; rounds: number; wins: number; players: number | null }[]
+  sites: string[]
+  yourBand: number | null
+  sharing: boolean
+  lastError: string | null
+  lastUpload: { at: number; ops: number; rounds: number } | null
+}
 
 export interface SimPerson { profileId: string; name: string; source: 'friend' | 'recent' }
 export interface SimRequest { mapKey: string; side: Side; myTeam: string[]; enemyTeam: string[] } // names or profile ids
@@ -178,6 +198,10 @@ export interface RsApi {
   loginWithUbisoft(): Promise<AuthResult>
   /** Ubisoft Career operator stats: yours ('me') or aggregated over players you've met ('others'). */
   apiOps(f: { who: 'me' | 'others'; season: string; playlist?: string }): Promise<ApiOps>
+  /** Global crowd meta (downloaded; sharing is opt-in in Settings). */
+  globalMeta(f: GlobalFilter): Promise<GlobalMeta>
+  /** Uploads pending data (if sharing) and re-downloads the global meta now. */
+  refreshGlobal(): Promise<boolean>
   /** Friends (Ubisoft) and players you've met, for the simulator. */
   simPeople(): Promise<{ people: SimPerson[]; error: string | null }>
   /** Simulates a match on any map with chosen players (in memory only). */
@@ -195,5 +219,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate'>[]

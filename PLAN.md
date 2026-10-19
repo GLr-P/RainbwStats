@@ -138,11 +138,11 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 - [x] GitHub Pages: landing page + hosted meta dataset; app pulls dataset with disk cache
 - DoD: tagged release downloads + installs + auto-detects replay folder on a clean profile.
 
-### Phase 8 — Global crowd database (the "pick/ban/WR for everyone" feature)
-- [ ] Opt-in anonymous upload of round records (no names; salted-hash profile IDs)
-- [ ] Cloudflare Worker + D1 (free tier) ingest + nightly aggregation → cached JSON per season/patch
-- [ ] App blends crowd → local → seed, with sample sizes shown
-- Needs: a Cloudflare account (`npx wrangler login`, one-time user step).
+### Phase 8 — Global crowd database (the "pick/ban/WR for everyone" feature) ✅
+- [x] Opt-in pseudonymous upload (Settings → Global database, off by default): lobby players' ranked Career op stats this season + rank band, replay player-rounds (map/site/side/op/result). HMAC ids, no names; sent once (crowd_sent_* tables)
+- [x] Cloudflare Worker + D1 (free tier, `worker/`): validated ingest, per-IP rate limit, dedupe (rounds by key, Career rows keep the newest), cron aggregation every 3 h → JSON per season
+- [x] App downloads for everyone (cached, 3 h): Meta → Global (rank band / map / site, sortable); recommendations use global data when it beats local samples (your rank band once it has 30+ players)
+- [ ] Bans: not in replays or Career stats; needs ban-phase OCR (backlog)
 
 ### Phase 9 — Ubisoft Career operator stats (no replays needed) ✅
 - [x] Found by reading the official Career page code (ubisoft.com/…/siege/services/career): `/v1/profiles/stats` with stat names `Round{Played,Won}OperatorConsolePlaylist[Seasonal]` (+ `calendarEntryId` per season, Y7S4→Y11S3). Works for PC, for **any** player, and **batched** (40 ids/request)
@@ -155,7 +155,6 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 ### Next (proposed order)
 1. **Rank-banded meta**: we know every lobby player's rank → meta per rank tier ("what wins at Emerald"). Cheap, high value
 2. **Ban suggestions**: enemy mains + their win rates → suggested bans before the ban phase
-3. **Phase 8 crowd DB**: pool anonymized per-season operator stats from all users' lobbies (+ replay map/site data) → global meta in days
 4. Export/import local data between PCs (replay-derived map/site stats)
 
 ### Backlog / expansion
@@ -196,6 +195,7 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 | 2026-10-19 | 4 | Screenshot review of every page found + fixed: misleading side tags, stale header side after match end, inflated pick rate in 3v3 (now exact team-rounds), baseline shown as win %, op chips overflowing, all-ops score penalty (now neutral 50 for no data) |
 | 2026-10-20 | 10.1 | **Researched meta for Y11S3.2** (docs/META-RESEARCH.md, rerunnable): siegestrats crawler (338 per-site lineups), Liquipedia pro bans (294 games), official ranked bans + win deltas read from Designer's Notes charts, manual overrides (Tubarão CCTV). Generated meta.json drives site tiers (evidence-weighted), map strong lists (pro must-bans), ranked deltas in the meta term; shipped in the downloadable dataset. Ranked pool only (15 maps) in pickers/simulator. Corrected outdated sites (Villa rework etc.). 67 tests. Real-profile E2E hit a Ubisoft session rate limit after repeated test runs (not a bug) |
 | 2026-10-20 | 10.2 | **Maps tab** (v0.3.2): researched meta per ranked map and side outside a live game: site S/A tiers with ranked win deltas, your top picks per site, strong-on-map list, pro bans, ranked meta table (win delta, ban rate, pro ban, your record). **Every operator table is sortable by any column, defaulting to win-rate delta** (Ops: Ubisoft + replays; Meta: players met + replays; Maps). Personal/crowd delta is shrunk toward the side average (~20 rounds) so tiny samples don't top the list. Demo screenshots include Maps (7-maps.png). 67 tests |
+| 2026-10-20 | 8 | **Global crowd DB** (v0.4.0): Worker deployed (rainbwstats-crowd.nanotechservices.workers.dev, D1 rainbwstats). Verified locally with wrangler dev: ingest validation, newer-wins upsert, round dedupe, custom games excluded, cron aggregation, rate limit (429 after 4/min burst). Production: health, empty meta, empty ingest, bad request OK. App: opt-in sharing, Meta → Global, recs prefer larger global samples. 72 tests |
 | 2026-10-20 | 10 | User: picks felt wrong (one attacker everywhere; Kaid/Bandit/hard breachers always top; Tubarão should be CCTV). Rebuilt recommender as **estimated round win chance** with signed reasons. Richer S/A site tiers (Tubarão S on Clubhouse CCTV), site-kind fit tier, site-unknown averaging, team-need model for hard breach/anti-breach from teammates (new slider), stronger shrinkage (1 lucky round +0.9% not +3%), outside-roster suggestion. Real-data check (user roster has no hard breachers): attack now uses 8/10 roster ops across sites, defense 9; tests for every reported case. 62 tests |
 | 2026-10-19 | 9.4 | User report: same 3 picks on every map/site. Cause: no map/site-specific signal (Ubisoft stats have no map breakdown: probed, 0 per-map stat names; 1 replay). Fix: curated site specialists for 17 maps (sitePicks.ts, remote-overridable) as a new weight "site" (0.25; untouched old defaults migrated), role-diversity re-ranking (−10 per repeated primary role), empty roster = operators you've played 10+ rounds. Verified on real data: defense picks now vary per map/site (e.g. basements Frost/Echo/Smoke, CCTV Mute/Maestro); attack keeps Thermite/Ace (user: 70%/64% vs 37–48% on mains) with a site-varying 3rd pick. 62 tests |
 | 2026-10-19 | 9.3 | **Audit with the user's real data** (copied profile, real login, Siege running). Found + fixed: (1) OCR never worked on real captures: 24-bit PNG + console code page → JSON parse failure → 0 lines (now UTF-8 I/O, control-char strip, BGRA8); (2) OCR false positive "Border" from code on screen → OCR now only while Siege is the **foreground** process (user32 via the worker), map/side must be short standalone labels, both-sides frames ignored, 2-frame confirmation, mid-match OCR can only change side/site; (3) side is now re-read every round between rounds (prediction is a fallback) + "If you're on ATK/DEF" row; (4) Stop did nothing after a simulation finished / new sim silently ignored → cancellation tokens; (5) friends showed blank names (nickname alias) → real usernames; (6) "Unranked 0". Recommender audit: 558 static recs + 105 simulated live states with real players/mains → 0 side mismatches. 58 tests |
@@ -211,4 +211,4 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 - [ ] Settings → Sign in with Ubisoft (Xbox/PSN/Facebook/email), then Live → Simulate last match: lobby should show real ranks
 - [ ] Play one match with the app open and report what the Live page showed (Phase 5/6)
 - [ ] Optional: enable OCR in Settings and check it reads the map before round 1 (borderless window mode is most reliable)
-- [ ] For Phase 8 (global database): create a free Cloudflare account and run `npx wrangler login` once
+- [ ] Turn on Settings → Global database (sharing) so your lobbies seed the global meta

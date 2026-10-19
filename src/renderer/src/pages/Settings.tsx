@@ -10,7 +10,7 @@ const DEFAULT_THEME: ThemeSettings = {
 export function SettingsPage({ settings: s, update, status, refreshStatus }: { settings: Settings; update: (p: Partial<Settings>) => Promise<void>; status: AppStatus | undefined; refreshStatus: () => void }) {
   const theme = (p: Partial<ThemeSettings>) => update({ theme: { ...s.theme, ...p } })
   const weight = (k: keyof Weights, v: number) => update({ weights: { ...s.weights, [k]: v } })
-  const Toggle = ({ k, label }: { k: 'alwaysOnTop' | 'autoSwitchToLive' | 'launchAtLogin' | 'ocrEnabled'; label: string }) => (
+  const Toggle = ({ k, label }: { k: 'alwaysOnTop' | 'autoSwitchToLive' | 'launchAtLogin' | 'ocrEnabled' | 'shareCrowd'; label: string }) => (
     <label className="toggle"><input type="checkbox" checked={s[k]} onChange={(e) => void update({ [k]: e.target.checked })} />{label}</label>
   )
   const Panel = ({ k, label }: { k: keyof Settings['panels']; label: string }) => (
@@ -40,6 +40,16 @@ export function SettingsPage({ settings: s, update, status, refreshStatus }: { s
         <Toggle k="launchAtLogin" label="Start with Windows" />
         <Toggle k="ocrEnabled" label="Read map and side from screen before round 1 (OCR, beta)" />
         <div className="small muted">OCR only looks at your screen while Siege runs and round 1 info is missing. Nothing leaves your PC.</div>
+      </div>
+
+      <div className="panel">
+        <h2>Global database</h2>
+        <Toggle k="shareCrowd" label="Share my lobbies' operator stats with the global database" />
+        <div className="small muted">
+          Everyone gets the global meta (Meta → Global). Sharing adds, for each player in your lobbies, their ranked operator rounds and wins
+          this season plus rank band, and from your replays the map, site, side, operator and round result. No names are sent; player ids are
+          replaced with a one-way hash. Custom games are ignored.
+        </div>
       </div>
 
       <div className="panel">

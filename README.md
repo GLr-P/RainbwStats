@@ -19,6 +19,12 @@ Ad-free, open-source Rainbow Six Siege X companion for Windows.
 | Ubisoft Career stats (same as the official Career page) | Your per-operator rounds & win rate for every season, and every lobby player's mains (works without replays) |
 | Ubisoft services, after you sign in on **Ubisoft's own login page** (Xbox / PlayStation / Facebook / email) | Ranks, RP, K/D, W/L for players in your lobby |
 | Screen OCR (optional) | Map and side before round 1 |
+| **Global database** (download for everyone; sharing is opt-in) | Season operator win/pick rates from all RainbwStats users, by rank band, and per map & site |
+
+**Global database privacy:** sharing is off until you turn it on in Settings. When on, the app sends each lobby player's
+ranked operator rounds/wins this season and rank band, and from your replays the map, site, side, operator and round result.
+No names are sent; Ubisoft profile ids are replaced by a one-way hash (pseudonymous). Custom games are ignored. The server is
+a small Cloudflare Worker ([worker/](worker/)) with a public read endpoint for the aggregated data.
 
 RainbwStats **never reads or modifies game memory** and never injects anything into the game. It only
 reads files Siege writes to disk and, optionally, your screen, the same way OBS or Discord does.

@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS api_op_stats (
   rounds INTEGER NOT NULL, wins INTEGER NOT NULL, PRIMARY KEY (profile_id, season, playlist, op_key)
 );
 CREATE TABLE IF NOT EXISTS api_op_fetch (profile_id TEXT NOT NULL, season TEXT NOT NULL, fetched_at TEXT NOT NULL, PRIMARY KEY (profile_id, season));
+-- What has been shared with the global crowd database (opt-in), so nothing is sent twice.
+CREATE TABLE IF NOT EXISTS crowd_sent_players (profile_id TEXT NOT NULL, season TEXT NOT NULL, fetched_at TEXT NOT NULL, PRIMARY KEY (profile_id, season));
+CREATE TABLE IF NOT EXISTS crowd_sent_matches (match_id TEXT PRIMARY KEY);
 `
 
 export interface AggFilter {
@@ -228,6 +231,37 @@ export function openDb(path: string) {
     },
     apiSeasons(profileId: string): string[] {
       return (db.prepare(`SELECT DISTINCT season FROM api_op_stats WHERE profile_id = ? ORDER BY season DESC`).all(profileId) as { season: string }[]).map((r) => r.season)
+    },
+
+    /** Ranked Career rows for players whose stats for `season` changed since they were last shared. */
+    crowdPendingOps(season: string): { profileId: string; opKey: string; rounds: number; wins: number; rank: number; fetchedAt: string }[] {
+      return db.prepare(`SELECT s.profile_id profileId, s.op_key opKey, s.rounds, s.wins, f.fetched_at fetchedAt,
+          coalesce((SELECT rank FROM rank_snapshots r WHERE r.profile_id = s.profile_id AND r.board = 'ranked' ORDER BY r.fetched_at DESC LIMIT 1), 0) rank
+        FROM api_op_stats s JOIN api_op_fetch f ON f.profile_id = s.profile_id AND f.season = s.season
+        LEFT JOIN crowd_sent_players c ON c.profile_id = s.profile_id AND c.season = s.season
+        WHERE s.season = ? AND s.playlist = 'ranked' AND s.rounds > 0 AND (c.fetched_at IS NULL OR c.fetched_at != f.fetched_at)
+        ORDER BY f.fetched_at, s.profile_id`).all(season) as never
+    },
+    /** Replay player-rounds of matches not shared yet. */
+    crowdPendingRounds(): { matchId: string; round: number; profileId: string; season: string; type: number; mapKey: string; site: string; side: Side; operatorId: string; won: number; rank: number }[] {
+      return db.prepare(`SELECT r.match_id matchId, r.round, rp.profile_id profileId, r.season, r.match_type type, r.map_key mapKey, r.site,
+          rp.side, rp.operator_id operatorId, rp.won,
+          coalesce((SELECT rank FROM rank_snapshots s WHERE s.profile_id = rp.profile_id AND s.board = 'ranked' ORDER BY s.fetched_at DESC LIMIT 1), 0) rank
+        FROM rounds r JOIN round_players rp USING (match_id, round)
+        WHERE r.match_id NOT IN (SELECT match_id FROM crowd_sent_matches) AND rp.side IS NOT NULL AND r.site != ''
+        ORDER BY r.played_at, r.match_id, r.round`).all() as never
+    },
+    /** Latest ranked rank id seen for a player (null = never fetched). */
+    latestRank(profileId: string): number | null {
+      return (db.prepare(`SELECT rank FROM rank_snapshots WHERE profile_id = ? AND board = 'ranked' ORDER BY fetched_at DESC LIMIT 1`).get(profileId) as { rank: number } | undefined)?.rank ?? null
+    },
+    markCrowdSent(players: { profileId: string; season: string; fetchedAt: string }[], matches: string[]): void {
+      tx(() => {
+        const p = db.prepare(`INSERT OR REPLACE INTO crowd_sent_players VALUES (?, ?, ?)`)
+        for (const x of players) p.run(x.profileId, x.season, x.fetchedAt)
+        const m = db.prepare(`INSERT OR IGNORE INTO crowd_sent_matches VALUES (?)`)
+        for (const id of matches) m.run(id)
+      })
     },
 
     getJson<T>(key: string): T | undefined {

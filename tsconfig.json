@@ -16,5 +16,5 @@
     "erasableSyntaxOnly": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*", "test/**/*", "*.config.ts"]
+  "include": ["src/**/*", "test/**/*", "worker/src/**/*", "*.config.ts"]
 }

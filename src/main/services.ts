@@ -1,13 +1,14 @@
 // Query layer shared by IPC handlers and the live engine.
 import type { Db } from './db'
 import type { Dataset } from '../shared/data/dataset'
-import type { ApiOps, GuideOp, LivePlayer, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
+import type { ApiOps, GlobalFilter, GlobalMeta, GuideOp, LivePlayer, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
 import { baselineFor, recommend, ROLE_PRIOR, type AggMap } from '../shared/recommend'
 import { allOperators, operatorById, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import type { RoleTag } from '../shared/data/operators'
 import { KIND_FIT, mapStrongFor, proBansFor, seedSitesFor, siteKindFor, siteTiersFor } from '../shared/data/sitePicks'
 import { meta } from '../shared/data/meta'
-import type { Side } from '../shared/types'
+import type { Agg, Side } from '../shared/types'
+import { bandOf, type CrowdMeta } from '../shared/crowd'
 
 export interface Ctx {
   db: Db
@@ -15,6 +16,47 @@ export interface Ctx {
   dataset: () => Dataset
   /** The user's Ubisoft profile id (login, else most common replay recorder). */
   me: () => string | null
+  /** Downloaded global crowd meta for the current season (null = none yet). */
+  crowd?: () => CrowdMeta | null
+}
+
+type OpCount = { rounds: number; wins: number; players: number }
+/** Global ranked Career stats per operator key (one rank band, or all). */
+export function globalOps(g: CrowdMeta | null, band?: number): Map<string, OpCount> {
+  const out = new Map<string, OpCount>()
+  for (const [op, b, rounds, wins, n] of g?.ops ?? []) {
+    if (band !== undefined && b !== band) continue
+    const a = out.get(op) ?? { rounds: 0, wins: 0, players: 0 }
+    out.set(op, { rounds: a.rounds + rounds, wins: a.wins + wins, players: a.players + n })
+  }
+  return out
+}
+/** Global replay rounds per operator key for a side / map / site. */
+export function globalSites(g: CrowdMeta | null, f: { side?: Side; mapKey?: string; site?: string }): Map<string, OpCount> {
+  const out = new Map<string, OpCount>()
+  for (const [map, site, side, op, rounds, wins] of g?.sites ?? []) {
+    if ((f.side && side !== f.side) || (f.mapKey && map !== f.mapKey) || (f.site && site !== f.site)) continue
+    const a = out.get(op) ?? { rounds: 0, wins: 0, players: 0 }
+    out.set(op, { rounds: a.rounds + rounds, wins: a.wins + wins, players: 0 })
+  }
+  return out
+}
+const toAggMap = (m: Map<string, OpCount>, side: Side): AggMap => new Map([...m].flatMap(([k, a]): [string, Agg][] => {
+  const op = operatorByKey(k)
+  return op && op.side === side ? [[op.id, { rounds: a.rounds, wins: a.wins, kills: 0, deaths: 0, headshots: 0 }]] : []
+}))
+const total = (m: AggMap | undefined) => [...(m ?? new Map<string, Agg>()).values()].reduce((n, a) => n + a.rounds, 0)
+/** The larger sample of two (global data includes what you shared, so they are not summed). */
+const bigger = (a: AggMap, b: AggMap): AggMap => (total(b) > total(a) ? b : a)
+/** Players in a band = most players on any operator in it. */
+const bandPlayers = (g: CrowdMeta | null, band: number) => Math.max(0, ...(g?.ops ?? []).filter((x) => x[1] === band).map((x) => x[4]))
+/** Your rank band, when the global data has enough players in it (else null = all ranks). */
+export function yourBand(ctx: Ctx, g: CrowdMeta | null, minPlayers = 30): number | null {
+  const me = ctx.me()
+  const rank = me ? ctx.db.latestRank(me) : null
+  if (!rank) return null
+  const band = bandOf(rank)
+  return bandPlayers(g, band) >= minPlayers ? band : null
 }
 
 const DAY = 86_400_000
@@ -126,7 +168,12 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
   const mineF = (extra: object) => (me ? ctx.db.opAggs({ profileId: me, side: q.side, ...extra }) : new Map())
   const season = currentSeason(ctx)
   const myApi = me ? apiAggMap(ctx, q.side, { profileId: me, season: 'all' }).map : new Map()
-  const crowdSeason = apiAggMap(ctx, q.side, { excludeProfileId: me ?? '', season })
+  // Season meta: everyone on RainbwStats (your rank band when it has enough players) or the players you met.
+  const g = ctx.crowd?.() ?? null
+  const band = yourBand(ctx, g)
+  const metPlayers = apiAggMap(ctx, q.side, { excludeProfileId: me ?? '', season })
+  const globalPlayers = band !== null ? bandPlayers(g, band) : g?.players ?? 0
+  const crowdSeason = globalPlayers > metPlayers.players ? { map: toAggMap(globalOps(g, band ?? undefined), q.side), players: globalPlayers } : metPlayers
   // Familiarity: replay recency plus how much you've played each op this season (Ubisoft).
   const recent = recentWeights(ctx, q.side)
   if (me) for (const [id, a] of apiAggMap(ctx, q.side, { profileId: me, season }).map) recent.set(id, (recent.get(id) ?? 0) + a.rounds * 0.3)
@@ -158,9 +205,9 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
     },
     crowdTeamRounds: ctx.db.teamRounds({ side: q.side, mapKey: q.mapKey ?? undefined, site: q.mapKey && q.site ? q.site : undefined }),
     crowd: {
-      overall: ctx.db.opAggs({ side: q.side }),
-      map: q.mapKey ? ctx.db.opAggs({ mapKey: q.mapKey, side: q.side }) : undefined,
-      site: q.mapKey && q.site ? ctx.db.opAggs({ mapKey: q.mapKey, site: q.site, side: q.side }) : undefined
+      overall: bigger(ctx.db.opAggs({ side: q.side }), toAggMap(globalSites(g, { side: q.side }), q.side)),
+      map: q.mapKey ? bigger(ctx.db.opAggs({ mapKey: q.mapKey, side: q.side }), toAggMap(globalSites(g, { side: q.side, mapKey: q.mapKey }), q.side)) : undefined,
+      site: q.mapKey && q.site ? bigger(ctx.db.opAggs({ mapKey: q.mapKey, site: q.site, side: q.side }), toAggMap(globalSites(g, { side: q.side, mapKey: q.mapKey, site: q.site }), q.side)) : undefined
     },
     baseline: baselineFor(ctx.dataset(), q.mapKey),
     recent,
@@ -238,5 +285,25 @@ export function mapGuide(ctx: Ctx, mapKey: string, side: Side): MapGuide {
   return {
     mapKey, side, sites, strong: mapStrongFor(mapKey, side).map(cell).sort(byDelta), proBans, proGames: m.maps[mapKey]?.proBans.games ?? 0,
     ranked, info: { version: m.version, patch: m.patch, rankedScope: m.ranked.scope, sources: m.sources, notes: m.notes }
+  }
+}
+
+/** The Meta page's Global view. Without a map: ranked Career stats per rank band; with a map: replay rounds. */
+export function globalMeta(ctx: Ctx, f: GlobalFilter, status: Pick<GlobalMeta, 'sharing' | 'lastError' | 'lastUpload'>): GlobalMeta {
+  const g = ctx.crowd?.() ?? null
+  const me = ctx.me()
+  const rank = me ? ctx.db.latestRank(me) : null
+  const career = !f.mapKey
+  const counts = career ? globalOps(g, f.band) : globalSites(g, { mapKey: f.mapKey, site: f.site || undefined })
+  const rows = [...counts].flatMap(([key, a]) => {
+    const op = operatorByKey(key)
+    return op ? [{ opKey: key, name: op.name, side: op.side, rounds: a.rounds, wins: a.wins, players: career ? a.players : null }] : []
+  })
+  const sites = f.mapKey ? [...new Set((g?.sites ?? []).filter((x) => x[0] === f.mapKey).map((x) => x[1]))].sort() : []
+  return {
+    available: !!g, season: currentSeason(ctx), generatedAt: g?.generatedAt ?? null,
+    players: career ? (f.band !== undefined ? bandPlayers(g, f.band) : g?.players ?? 0) : 0,
+    rounds: career ? 0 : rows.reduce((n, r) => n + r.rounds, 0),
+    scope: career ? 'career' : 'replays', rows, sites, yourBand: rank ? bandOf(rank) : null, ...status
   }
 }

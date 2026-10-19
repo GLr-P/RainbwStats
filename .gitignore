@@ -10,3 +10,6 @@ test/fixtures/local/
 
 # Research crawl cache (third-party pages; only derived data is committed)
 research/cache/
+
+# Wrangler local state (local D1 emulator, build cache)
+.wrangler/

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { allMaps } from '../../../shared/catalog'
 import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
+import { BANDS } from '../../../shared/crowd'
 import { Bar, Seg, SideTag, pct, ratio, rs, useData, useSort } from '../lib'
 
 interface Filters { mapKey: string; site: string; side: Side | ''; season: string }
@@ -144,15 +145,85 @@ export function OperatorsPage() {
   )
 }
 
+function GlobalMetaView() {
+  const [band, setBand] = useState('')
+  const [mapKey, setMapKey] = useState('')
+  const [site, setSite] = useState('')
+  const [side, setSide] = useState<Side | ''>('')
+  const [busy, setBusy] = useState(false)
+  const [g, reload] = useData(() => rs().globalMeta({ band: band === '' ? undefined : Number(band), mapKey: mapKey || undefined, site: site || undefined }), [band, mapKey, site])
+  type Row = NonNullable<typeof g>['rows'][number]
+  const all = g?.rows ?? []
+  const avgs = sideAvgs(all)
+  const delta = (r: Row) => winDelta(r.wins, r.rounds, avgs[r.side])
+  const sideTotal = (s: Side) => all.filter((r) => r.side === s).reduce((n, r) => n + r.rounds, 0)
+  const pickOf = (r: Row) => Math.min(1, (r.rounds * 5) / Math.max(1, sideTotal(r.side)))
+  const { sort, H } = useSort<Row, 'delta' | 'name' | 'side' | 'wr' | 'rounds' | 'pick' | 'players'>('delta', (r, k) =>
+    k === 'delta' ? delta(r) : k === 'name' ? r.name : k === 'side' ? r.side : k === 'wr' ? r.wins / r.rounds : k === 'rounds' ? r.rounds : k === 'pick' ? pickOf(r) : r.players)
+  const rows = sort(all.filter((r) => !side || r.side === side))
+  const refresh = async () => { setBusy(true); try { await rs().refreshGlobal() } finally { setBusy(false); reload() } }
+  const career = g?.scope !== 'replays'
+  return (
+    <>
+      <p className="muted small" style={{ margin: 0 }}>
+        Combined from every RainbwStats user who shares. All maps: ranked operator stats this season of every player in their lobbies (by rank band).
+        Pick a map for per-site data from replays. Updated every 3 hours.
+      </p>
+      {g && !g.sharing && <div className="panel small">You're not sharing yet. Turn on <b>Settings → Global database</b> to add your lobbies (no names are sent).</div>}
+      <div className="panel row">
+        <select value={band} onChange={(e) => setBand(e.target.value)} disabled={!career} aria-label="Rank band">
+          <option value="">All ranks</option>
+          {BANDS.map((b, i) => <option key={b} value={i}>{b}{g?.yourBand === i ? ' (you)' : ''}</option>)}
+        </select>
+        <select value={mapKey} onChange={(e) => { setMapKey(e.target.value); setSite('') }} aria-label="Map">
+          <option value="">All maps</option>
+          {pickerMaps(allMaps()).map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
+        </select>
+        <select value={site} onChange={(e) => setSite(e.target.value)} disabled={!g?.sites.length} aria-label="Site">
+          <option value="">All sites</option>
+          {g?.sites.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <Seg value={side} options={[{ v: '', label: 'Both' }, { v: 'attack', label: 'Attack' }, { v: 'defense', label: 'Defense' }]} onChange={setSide} />
+        <button onClick={() => void refresh()} disabled={busy}>{busy ? 'Syncing…' : 'Refresh'}</button>
+        <span className="small muted">
+          {g?.season} · {career ? `${g?.players ?? 0} players` : `${g?.rounds ?? 0} player-rounds`}
+          {g?.generatedAt ? ` · updated ${new Date(g.generatedAt).toLocaleString()}` : ''}
+          {g?.lastUpload ? ` · you shared ${g.lastUpload.ops + g.lastUpload.rounds} rows` : ''}
+          {g?.lastError ? ` · ${g.lastError}` : ''}
+        </span>
+      </div>
+      <div className="panel">
+        {!rows.length ? <div className="empty">{g?.available ? 'No global data for this filter yet. It grows as people share.' : 'Global data not downloaded yet. Check your connection and press Refresh.'}</div> : (
+          <table>
+            <thead><tr><H k="name" left>Operator</H><H k="side" left>Side</H><H k="delta" title={DELTA_TIP}>Δ win</H><H k="wr">Win %</H><H k="rounds">Rounds</H><H k="pick" left>Pick rate</H>{career && <H k="players">Players</H>}</tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.opKey}>
+                  <td style={{ fontWeight: 600 }}>{r.name}</td><td><SideTag side={r.side} /></td>
+                  <DeltaCell d={delta(r)} />
+                  <td className="r num">{pct(r.wins / r.rounds)}</td>
+                  <td className="r num">{r.rounds}</td>
+                  <td><Bar value={pickOf(r)} /> <span className="num small">{pct(pickOf(r))}</span></td>
+                  {career && <td className="r num">{r.players}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  )
+}
+
 export function MetaPage() {
-  const [source, setSource] = useState<Source>('ubisoft')
+  const [source, setSource] = useState<Source | 'global'>('global')
   return (
     <>
       <div className="panel row">
         <h2 style={{ margin: 0 }}>Operator meta</h2>
-        <Seg value={source} options={[{ v: 'ubisoft', label: 'Players I\'ve met (Ubisoft, per season)' }, { v: 'replays', label: 'Replays (by map & site)' }]} onChange={setSource} />
+        <Seg value={source} options={[{ v: 'global', label: 'Global (all users)' }, { v: 'ubisoft', label: 'Players I\'ve met' }, { v: 'replays', label: 'My replays (map & site)' }]} onChange={setSource} />
       </div>
-      {source === 'ubisoft' ? (
+      {source === 'global' ? <GlobalMetaView /> : source === 'ubisoft' ? (
         <>
           <p className="muted small" style={{ margin: 0 }}>Every match adds the full operator history of all 10 players in your lobby, straight from Ubisoft. Grows fast, but has no map or site detail.</p>
           <UbisoftOps who="others" />

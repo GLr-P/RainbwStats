@@ -1,0 +1,21 @@
+name = "rainbwstats-crowd"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rainbwstats"
+database_id = "3542abba-0435-48ab-86e4-a99e8e1966d8"
+
+# Rebuild the per-season aggregates every 3 hours.
+[triggers]
+crons = ["17 */3 * * *"]
+
+# Uploads per IP: 6 per minute is plenty for a client that uploads after each match.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 6
+  period = 60

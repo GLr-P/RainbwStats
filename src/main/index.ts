@@ -14,7 +14,8 @@ import { UbiClient, UbiError } from './ubi/client'
 import { LobbyService } from './ubi/lobby'
 import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
-import { apiOps, currentSeason, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
+import { apiOps, currentSeason, globalMeta, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
+import { CrowdSync } from './crowd'
 import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
 import { SEED_SITES } from '../shared/data/maps'
 import { rankedPool } from '../shared/data/sitePicks'
@@ -73,12 +74,15 @@ app.whenReady().then(async () => {
   const dataset = new DatasetStore(dataDir)
   const ubi = new UbiClient({ fetch, now: Date.now, loadCredentials: secure.loadCredentials, loadAuth: secure.loadAuth, saveAuth: secure.saveAuth,
     reauth: () => ubisoftWebLogin({ silent: true }) })
-  const ctx: Ctx = { db, settings: () => settings.get(), dataset: () => dataset.get(), me: () => ubi.profileId ?? db.mostCommonRecorder() }
+  // Global crowd database: sharing is opt-in; smoke/demo runs never touch it.
+  const crowd = new CrowdSync(db, { url: () => settings.get().crowdUrl, season: () => dataset.get().season, enabled: () => settings.get().shareCrowd && !demo && !isSmoke })
+  const ctx: Ctx = { db, settings: () => settings.get(), dataset: () => dataset.get(), me: () => ubi.profileId ?? db.mostCommonRecorder(), crowd: () => crowd.meta() }
   const lobby = demo ? demoLobby() : new LobbyService(ubi, db)
   const replayRoot = () => (settings.get().gameDir ? replayRootOf(settings.get().gameDir!) : null)
   const engine = new LiveEngine(ctx, lobby, replayRoot)
   const opsync = new OpStatsSync(ubi, db, () => currentSeason(ctx))
-  engine.onLobby = (ids) => opsync.syncPlayers(ids)
+  const crowdTick = (force = false): Promise<boolean> => (isSmoke || demo ? Promise.resolve(false) : crowd.tick(force).then((changed) => { if (changed) void engine.refresh(); return changed }))
+  engine.onLobby = (ids) => opsync.syncPlayers(ids).then((ok) => { void crowdTick(); return ok })
   /** Your Ubisoft operator history (all seasons; past seasons fetched once). */
   const syncMine = () => { const me = ctx.me(); if (me && ubi.canAuth) void opsync.syncMine(me).then((ok) => ok && engine.refresh()) }
   const ocr = new OcrDetector((d, fresh) => engine.setDetected(d, fresh))
@@ -91,6 +95,7 @@ app.whenReady().then(async () => {
   if (settings.get().ocrEnabled) ocr.start()
   if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
   if (!isSmoke) { syncMine(); setInterval(syncMine, 3600_000) }
+  if (!isSmoke && !demo) { setTimeout(() => void crowdTick(), 20_000); setInterval(() => void crowdTick(), 3600_000) }
   void dataset.refresh(settings.get().datasetUrl).then((changed) => changed && engine.refresh())
   // Installer builds update themselves from GitHub Releases (downloaded in background, applied on quit).
   const updates = new Updater((s) => win?.webContents.send('rs:update', s))
@@ -117,6 +122,7 @@ app.whenReady().then(async () => {
       if (next.alwaysOnTop !== prev.alwaysOnTop) win?.setAlwaysOnTop(next.alwaysOnTop)
       if (next.launchAtLogin !== prev.launchAtLogin) app.setLoginItemSettings({ openAtLogin: next.launchAtLogin })
       if (next.ocrEnabled !== prev.ocrEnabled) next.ocrEnabled ? ocr.start() : ocr.stop()
+      if (next.shareCrowd && !prev.shareCrowd) void crowdTick()
       engine.refresh()
       return next
     },
@@ -148,6 +154,8 @@ app.whenReady().then(async () => {
       } catch (e) { return authErr(e) }
     },
     apiOps: async (f) => apiOps(ctx, f, opsync.lastError),
+    globalMeta: async (f) => globalMeta(ctx, f, { sharing: settings.get().shareCrowd, lastError: crowd.lastError, lastUpload: crowd.lastUpload }),
+    refreshGlobal: () => crowdTick(true),
     mapGuide: async (mapKey, side) => mapGuide(ctx, mapKey, side),
     simPeople: async () => {
       let error: string | null = null
