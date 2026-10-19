@@ -8,6 +8,12 @@ import { detect, type Detection } from './matcher'
 
 const GAME_PROCESS = /^RainbowSix/i
 
+/** Siege's main menu (top bar PLAY / OPERATORS / BATTLEPASS / LOCKER, "BROWSE PLAYLISTS"). */
+export function isMenu(lines: unknown): boolean {
+  const text = (Array.isArray(lines) ? lines : []).map((l) => (typeof l === 'string' ? l : typeof l === 'object' && l && 'text' in l ? String((l as { text: unknown }).text) : '')).join(' ').toUpperCase()
+  return text.includes('BROWSE PLAYLISTS') || ['OPERATORS', 'BATTLEPASS', 'LOCKER', 'CAREER'].filter((w) => text.includes(w)).length >= 3
+}
+
 export class OcrDetector {
   private timer: NodeJS.Timeout | null = null
   private worker = new OcrWorker()
@@ -52,7 +58,8 @@ export class OcrDetector {
       writeFileSync(file, src.thumbnail.toPNG())
       const lines = await this.worker.recognize(file)
       const found = detect(lines, this.sitesByMap)
-      if (this.debugDir) this.keepDebug(dir, stamp, lines, found)
+      // Main-menu frames are useless for debugging and would push out the interesting ones (ban phase, loading).
+      if (this.debugDir) { if (isMenu(lines)) rmSync(file, { force: true }); else this.keepDebug(dir, stamp, lines, found) }
       // Require the same reading in two consecutive frames before acting on it.
       const sig = `${found.mapKey ?? ''}|${found.side ?? ''}|${found.site ?? ''}`
       const confirmed = sig !== '||' && sig === this.pending

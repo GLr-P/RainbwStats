@@ -33,3 +33,11 @@ describe('ocr matcher: real-world false positives', () => {
     expect(detect(['CLUBHOUSE', 'ATTACKERS', 'DEFENDERS'])).toEqual({ mapKey: 'clubhouse' })
   })
 })
+
+describe('main menu frames', () => {
+  it('are recognised so debug captures keep the useful frames', async () => {
+    const { isMenu } = await import('../src/main/ocr/detector')
+    expect(isMenu(['PLAY', 'OPERATORS', 'BATTLEPASS', 'LOCKER', 'CAREER', 'ESPORTS', 'RANKED', 'BROWSE PLAYLISTS'])).toBe(true)
+    expect(isMenu(['VILLA', 'ATTACK', 'ROUND 1', 'SELECT YOUR OPERATOR'])).toBe(false)
+  })
+})
