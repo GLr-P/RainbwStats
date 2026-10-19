@@ -27,6 +27,8 @@ export interface RecInput {
   /** operator id → recency-weighted play count for the user. */
   recent?: Map<string, number>
   weights: Weights
+  /** Curated specialists (operator ids) for this map, and for the site when one is given. */
+  specialists?: { map?: string[]; site?: string[] }
   minRounds: number
   topN: number
 }
@@ -118,10 +120,17 @@ export function recommend(inp: RecInput): Recommendation[] {
     const fills = op.roles.filter((r) => missing.includes(r))
     const teamfit = inp.teammateOps?.length ? (fills.length ? 1 : 0.3) : fills.length ? 0.65 : 0.45
 
+    // Site fit: curated specialists for this site (strongest) or map. Neutral when no curated data.
+    const onSite = !!inp.specialists?.site?.includes(op.id)
+    const onMap = !!inp.specialists?.map?.includes(op.id)
+    const hasSpecs = !!(inp.specialists?.site?.length || inp.specialists?.map?.length)
+    const sitefit = !hasSpecs ? 0.5 : onSite ? 1 : onMap ? (inp.specialists?.site?.length ? 0.7 : 1) : 0.3
+
     const w = inp.weights
-    const parts = [personal, meta, comfort, teamfit]
-    const wsum = w.personal + w.meta + w.comfort + w.teamfit || 1
-    const score = Math.round(((w.personal * personal + w.meta * meta + w.comfort * comfort + w.teamfit * teamfit) / wsum) * 100)
+    const ws = w.site ?? 0
+    const parts = [personal, meta, comfort, teamfit, sitefit]
+    const wsum = w.personal + w.meta + w.comfort + w.teamfit + ws || 1
+    const score = Math.round(((w.personal * personal + w.meta * meta + w.comfort * comfort + w.teamfit * teamfit + ws * sitefit) / wsum) * 100)
 
     const reasons: string[] = []
     const where = scope === 'site' ? 'this site' : scope === 'map' ? 'this map' : 'overall'
@@ -131,16 +140,34 @@ export function recommend(inp: RecInput): Recommendation[] {
     else if (sc.rounds >= 20) reasons.push(`Season meta: ${pct(sc.wins / sc.rounds)} WR · in ${pct(Math.min(1, (sc.rounds * 5) / Math.max(1, scTotal)))} of rounds (${inp.crowdSeasonPlayers ?? 0} players)`)
     else reasons.push(`Baseline strength ${pct(base)}`)
     if (comfort >= 0.6) reasons.push('One of your most played')
+    if (onSite) reasons.push('Site specialist')
+    else if (onMap) reasons.push('Strong on this map')
     if (inp.teammateOps?.length && fills.length) reasons.push(`Team lacks ${fills.map((r) => ROLE_LABEL[r] ?? r).join(' + ')}`)
 
     return { operatorId: op.id, name: op.name, score, reasons, personal: shown, scope, metaRounds: c.rounds, baseline: c.rounds < 5 && sc.rounds < 20, parts }
   })
 
-  return recs
-    .sort((a, b) => b.score - a.score || b.parts[1]! - a.parts[1]! || a.name.localeCompare(b.name))
-    .slice(0, Math.max(1, inp.topN))
-    .map(({ parts: _parts, ...r }) => r)
+  const ranked = recs.sort((a, b) => b.score - a.score || b.parts[1]! - a.parts[1]! || a.name.localeCompare(b.name))
+  // Role diversity: each later pick that repeats a role already picked (e.g. a second hard
+  // breacher) loses points, so the list offers real alternatives instead of near-duplicates.
+  const picked: typeof ranked = []
+  const roleOf = (id: string) => operatorById(id)?.roles[0]
+  while (picked.length < Math.max(1, inp.topN) && picked.length < ranked.length) {
+    let best: (typeof ranked)[number] | undefined
+    let bestScore = -Infinity
+    for (const r of ranked) {
+      if (picked.some((p) => p.operatorId === r.operatorId)) continue
+      const dupes = picked.filter((p) => roleOf(p.operatorId) === roleOf(r.operatorId)).length
+      const adjusted = r.score - DIVERSITY_PENALTY * dupes
+      if (adjusted > bestScore) { bestScore = adjusted; best = r }
+    }
+    picked.push({ ...best!, score: Math.max(0, Math.round(bestScore)) })
+  }
+  return picked.map(({ parts: _parts, ...r }) => r)
 }
+
+/** Score points removed per already-picked operator with the same primary role. */
+const DIVERSITY_PENALTY = 10
 
 /** Baseline priors (by operator id) for a map from a dataset keyed by operator key. */
 export function baselineFor(ds: { baseline: Record<string, number>; mapBaseline?: Record<string, Record<string, number>> }, mapKey: string | null): Map<string, number> {

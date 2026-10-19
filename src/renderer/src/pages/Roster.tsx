@@ -11,15 +11,17 @@ const ROLE: Record<string, string> = {
 export function RosterPage({ settings, update }: { settings: Settings; update: (p: Partial<Settings>) => Promise<void> }) {
   const setSide = (side: Side, keys: string[]) => update({ roster: { ...settings.roster, [side]: keys } })
   const mostPlayed = async (side: Side) => {
-    const rows = await rs().opStats({ mine: true, side })
-    const keys = rows.slice(0, 8).map((r) => allOperators().find((o) => o.id === r.operatorId)?.key).filter((k): k is string => !!k)
+    // Your most played from Ubisoft (all games), falling back to replays.
+    const api = (await rs().apiOps({ who: 'me', season: 'all' })).rows.filter((r) => r.side === side).map((r) => r.opKey)
+    const replays = (await rs().opStats({ mine: true, side })).map((r) => allOperators().find((o) => o.id === r.operatorId)?.key).filter((k): k is string => !!k)
+    const keys = (api.length ? api : replays).slice(0, 8)
     if (keys.length) await setSide(side, keys)
   }
   return (
     <>
       <div className="panel">
         <h2>Active roster</h2>
-        <p className="muted small" style={{ margin: 0 }}>Pick the operators you're willing to play. Recommendations only come from this list. Nothing selected on a side means every operator is considered.</p>
+        <p className="muted small" style={{ margin: 0 }}>Pick the operators you're willing to play. Recommendations only come from this list. Nothing selected on a side = the operators you've actually played 10+ rounds (from your Ubisoft history), or everyone if you have no history yet.</p>
       </div>
       {(['attack', 'defense'] as Side[]).map((side) => {
         const sel = new Set(settings.roster[side])
@@ -27,7 +29,7 @@ export function RosterPage({ settings, update }: { settings: Settings; update: (
         const toggle = (key: string) => setSide(side, sel.has(key) ? [...sel].filter((k) => k !== key) : [...sel, key])
         return (
           <div className="panel" key={side}>
-            <h2><SideTag side={side} /> {sel.size ? `${sel.size} selected` : 'All operators'}
+            <h2><SideTag side={side} /> {sel.size ? `${sel.size} selected` : 'Automatic: operators you play'}
               <span className="spacer" />
               <button className="btn" onClick={() => setSide(side, ops.map((o) => o.key))}>All</button>
               <button className="btn" onClick={() => setSide(side, [])}>Clear</button>

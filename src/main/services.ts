@@ -5,6 +5,7 @@ import type { ApiOps, LivePlayer, MetaRow, OpStatRow, Recommendation, Settings }
 import { baselineFor, recommend, type AggMap } from '../shared/recommend'
 import { allOperators, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import { SEED_SITES } from '../shared/data/maps'
+import { SITE_PICKS, sitePicksFor } from '../shared/data/sitePicks'
 import type { Side } from '../shared/types'
 
 export interface Ctx {
@@ -67,6 +68,28 @@ export function apiOps(ctx: Ctx, f: { who: 'me' | 'others'; season: string; play
   return { rows, players: f.who === 'me' ? (rows.length ? 1 : 0) : ctx.db.apiPlayerCount(f.season, me), seasons, current: currentSeason(ctx), lastError }
 }
 
+/** Minimum lifetime rounds on an operator for it to count as one you play. */
+export const PLAYED_MIN_ROUNDS = 10
+
+/** Operators you actually play on a side (Ubisoft lifetime + replays). */
+export function playedPool(ctx: Ctx, side: Side): string[] {
+  const me = ctx.me()
+  if (!me) return []
+  const ids = new Set<string>()
+  for (const [id, a] of apiAggMap(ctx, side, { profileId: me, season: 'all' }).map) if (a.rounds >= PLAYED_MIN_ROUNDS) ids.add(id)
+  for (const [id, a] of ctx.db.opAggs({ profileId: me, side })) if (a.rounds >= PLAYED_MIN_ROUNDS) ids.add(id)
+  return [...ids]
+}
+
+/** Roster used for recommendations: your explicit roster, else the operators you play (when you
+ *  have enough history for a real choice), else everyone. */
+export function effectiveRoster(ctx: Ctx, side: Side): string[] {
+  const explicit = rosterIds(ctx.settings(), side)
+  if (explicit.length) return explicit
+  const played = playedPool(ctx, side)
+  return played.length >= 4 ? played : []
+}
+
 export function rosterIds(s: Settings, side: Side): string[] {
   return s.roster[side].map((k) => operatorByKey(k)?.id).filter((x): x is string => !!x)
 }
@@ -81,9 +104,13 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
   // Comfort: replay recency plus how much you've played each op this season (Ubisoft).
   const recent = recentWeights(ctx, q.side)
   if (me) for (const [id, a] of apiAggMap(ctx, q.side, { profileId: me, season }).map) recent.set(id, (recent.get(id) ?? 0) + a.rounds * 0.3)
+  // Curated specialists for this map (and site): operator keys → ids for this side.
+  const ids = (keys?: string[]) => (keys ?? []).map((k) => operatorByKey(k)).filter((o) => o?.side === q.side).map((o) => o!.id)
+  const specialists = q.mapKey ? { map: ids(SITE_PICKS[q.mapKey]?.map[q.side]), site: q.site ? ids(sitePicksFor(q.mapKey, q.site)?.[q.side]) : undefined } : undefined
   return recommend({
+    specialists,
     crowdSeason: crowdSeason.map, crowdSeasonPlayers: crowdSeason.players,
-    side: q.side, mapKey: q.mapKey, site: q.site, roster: rosterIds(s, q.side), banned: q.banned, teammateOps: q.teammateOps,
+    side: q.side, mapKey: q.mapKey, site: q.site, roster: effectiveRoster(ctx, q.side), banned: q.banned, teammateOps: q.teammateOps,
     mine: {
       overall: mineF({}),
       api: myApi,

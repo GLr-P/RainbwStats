@@ -53,9 +53,9 @@ export function SettingsPage({ settings: s, update, status, refreshStatus }: { s
 
       <div className="panel">
         <h2>Recommendation weights</h2>
-        {(['personal', 'meta', 'comfort', 'teamfit'] as const).map((k) => (
+        {(['site', 'personal', 'meta', 'comfort', 'teamfit'] as const).map((k) => (
           <label className="field" key={k}>
-            {({ personal: 'Your performance on this map/site', meta: 'Meta (replays, else baseline)', comfort: 'How much you play it', teamfit: 'Fills a team role' })[k]}: {Math.round(s.weights[k] * 100)}
+            {({ personal: 'Your performance on this map/site', meta: 'Meta (replays, else baseline)', comfort: 'How much you play it', teamfit: 'Fills a team role', site: 'Fits this map/site (specialists)' })[k]}: {Math.round(s.weights[k] * 100)}
             <input type="range" min={0} max={1} step={0.05} value={s.weights[k]} onChange={(e) => void weight(k, Number(e.target.value))} />
           </label>
         ))}

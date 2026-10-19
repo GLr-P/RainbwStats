@@ -69,7 +69,7 @@ describe('Ubisoft Career operator stats', () => {
     const api = new Map([[id('sledge'), { rounds: 300, wins: 195, kills: 0, deaths: 0, headshots: 0 }], [id('ace'), { rounds: 300, wins: 120, kills: 0, deaths: 0, headshots: 0 }]])
     const r = recommend({
       side: 'attack', mapKey: 'bank', site: null, roster: [id('ace'), id('sledge')], mine: { overall: new Map(), api }, crowd: {},
-      baseline: baselineFor(BUNDLED_DATASET, 'bank'), weights: { personal: 1, meta: 0, comfort: 0, teamfit: 0 }, minRounds: 8, topN: 2
+      baseline: baselineFor(BUNDLED_DATASET, 'bank'), weights: { personal: 1, meta: 0, comfort: 0, teamfit: 0, site: 0 }, minRounds: 8, topN: 2
     })
     expect(r[0]?.name).toBe('Sledge')
     expect(r[0]?.reasons[0]).toMatch(/65% WR in 300 rds \(all your games\)/)

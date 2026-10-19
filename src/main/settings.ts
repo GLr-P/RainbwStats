@@ -4,7 +4,7 @@ import type { Settings } from '../shared/ipc'
 export const DEFAULT_SETTINGS: Settings = {
   gameDir: null,
   roster: { attack: [], defense: [] },
-  weights: { personal: 0.4, meta: 0.3, comfort: 0.15, teamfit: 0.15 },
+  weights: { personal: 0.35, meta: 0.2, comfort: 0.1, teamfit: 0.1, site: 0.25 },
   theme: {
     accent: '#e8b23a', attack: '#d9761c', defense: '#4a93e0', bg: '#0b0e13', surface: '#141922', text: '#e6e9ef',
     fontScale: 1, density: 'comfortable', angled: true
@@ -40,6 +40,9 @@ export class SettingsStore {
   constructor(db: Db) {
     this.db = db
     this.value = mergeSettings(DEFAULT_SETTINGS, db.getJson('settings') ?? {})
+    // v0.2.5 added the site weight: untouched old default weights move to the new defaults.
+    const w = this.value.weights
+    if (w.personal === 0.4 && w.meta === 0.3 && w.comfort === 0.15 && w.teamfit === 0.15) this.value = { ...this.value, weights: DEFAULT_SETTINGS.weights }
   }
   get(): Settings { return this.value }
   set(patch: Partial<Settings>): Settings {

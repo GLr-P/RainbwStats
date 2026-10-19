@@ -61,7 +61,7 @@ export interface LiveState {
   updatedAt: string
 }
 
-export interface Weights { personal: number; meta: number; comfort: number; teamfit: number }
+export interface Weights { personal: number; meta: number; comfort: number; teamfit: number; site: number }
 
 export interface ThemeSettings {
   accent: string
