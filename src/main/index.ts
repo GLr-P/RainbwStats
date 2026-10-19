@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { openDb } from './db'
 import { SettingsStore } from './settings'
@@ -13,6 +13,7 @@ import { metaRows, opStats, type Ctx } from './services'
 import { applyLearned } from './replay/ingest'
 import { findGameDirs, replayRootOf } from './replay/locate'
 import { OcrDetector } from './ocr/detector'
+import type { CatalogOverrides } from '../shared/catalog'
 import { API_METHODS, type AppStatus, type AuthResult, type RsApi, type Settings } from '../shared/ipc'
 
 const isSmoke = process.argv.includes('--smoke')
@@ -120,6 +121,7 @@ app.whenReady().then(async () => {
       return { card: cards[0] ?? null, history: db.rankHistory(id), encounters: me && me !== id ? db.encounters(id, me) : 0, error: e2 }
     },
     rescan: async () => { engine.rescan(); return status() },
+    catalog: async () => ({ operators: [...(dataset.get().operators ?? []), ...(db.getJson<NonNullable<CatalogOverrides['operators']>>('learnedOperators') ?? [])], maps: dataset.get().maps }),
     pickGameDir: async () => {
       const r = await dialog.showOpenDialog(win!, { title: 'Select your Rainbow Six Siege folder', properties: ['openDirectory'] })
       const dir = r.canceled ? null : r.filePaths[0] ?? null
@@ -135,9 +137,22 @@ app.whenReady().then(async () => {
   tray.on('click', () => win?.show())
 
   if (isSmoke) {
-    const fail = setTimeout(() => { console.error('SMOKE FAIL: timeout'); app.exit(1) }, 20000)
+    const fail = setTimeout(() => { console.error('SMOKE FAIL: timeout'); app.exit(1) }, 60000)
+    const shots = process.argv.find((a) => a.startsWith('--shots='))?.slice(8)
     win.webContents.once('did-finish-load', async () => {
-      const ok = await win!.webContents.executeJavaScript('new Promise(r => setTimeout(() => r(!!document.querySelector("[data-app-ready]")), 2500))')
+      const js = (code: string) => win!.webContents.executeJavaScript(code)
+      const ok = await js('new Promise(r => setTimeout(() => r(!!document.querySelector("[data-app-ready]")), 2500))')
+      if (ok && shots) {
+        // Screenshot every page at 1440×900 for visual review.
+        mkdirSync(shots, { recursive: true })
+        win!.setSize(1440, 900)
+        await engine.showLatest()
+        for (const [i, label] of ['Live', 'Roster', 'Ops', 'Meta', 'Players', 'Settings'].entries()) {
+          await js(`[...document.querySelectorAll('.nav button')].find(b => b.textContent.trim() === '${label}')?.click()`)
+          await new Promise((r) => setTimeout(r, 700))
+          writeFileSync(join(shots, `${i + 1}-${label.toLowerCase()}.png`), (await win!.webContents.capturePage()).toPNG())
+        }
+      }
       clearTimeout(fail)
       console.log(ok ? `SMOKE OK rounds=${db.counts().rounds}` : 'SMOKE FAIL: app root missing')
       app.exit(ok ? 0 : 1)

@@ -42,6 +42,7 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
       map: q.mapKey ? mineF({ mapKey: q.mapKey }) : undefined,
       site: q.mapKey && q.site ? mineF({ mapKey: q.mapKey, site: q.site }) : undefined
     },
+    crowdTeamRounds: ctx.db.teamRounds({ side: q.side, mapKey: q.mapKey ?? undefined, site: q.mapKey && q.site ? q.site : undefined }),
     crowd: {
       overall: ctx.db.opAggs({ side: q.side }),
       map: q.mapKey ? ctx.db.opAggs({ mapKey: q.mapKey, side: q.side }) : undefined,
@@ -67,12 +68,12 @@ export function opStats(ctx: Ctx, f: { mine: boolean; mapKey?: string; site?: st
 
 export function metaRows(ctx: Ctx, f: { mapKey?: string; site?: string; side: Side; season?: string }): MetaRow[] {
   const aggs = ctx.db.opAggs({ mapKey: f.mapKey, site: f.site, side: f.side, season: f.season })
-  const total = [...aggs.values()].reduce((n, a) => n + a.rounds, 0)
+  const teamRounds = Math.max(1, ctx.db.teamRounds(f))
   const base = baselineFor(ctx.dataset(), f.mapKey ?? null)
   return allOperators(f.side).map((op): MetaRow => {
     const a = aggs.get(op.id)
     return a && a.rounds
-      ? { operatorId: op.id, name: op.name, side: f.side, rounds: a.rounds, winRate: a.wins / a.rounds, pickRate: Math.min(1, (a.rounds * 5) / Math.max(1, total)), source: 'replays' }
+      ? { operatorId: op.id, name: op.name, side: f.side, rounds: a.rounds, winRate: a.wins / a.rounds, pickRate: Math.min(1, a.rounds / teamRounds), source: 'replays' }
       : { operatorId: op.id, name: op.name, side: f.side, rounds: 0, winRate: base.get(op.id) ?? 0.5, pickRate: 0, source: 'baseline' }
   }).sort((a, b) => b.rounds - a.rounds || b.winRate - a.winRate)
 }

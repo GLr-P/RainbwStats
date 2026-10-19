@@ -16,6 +16,8 @@ export interface RecInput {
   teammateOps?: string[]
   mine: { site?: AggMap; map?: AggMap; overall: AggMap }
   crowd: { site?: AggMap; map?: AggMap; overall?: AggMap }
+  /** Team-rounds behind the crowd scope (exact pick-rate denominator); estimated when absent. */
+  crowdTeamRounds?: number
   /** operator id → 0..1 prior strength (map-specific when available). */
   baseline: Map<string, number>
   /** operator id → recency-weighted play count for the user. */
@@ -72,14 +74,16 @@ export function recommend(inp: RecInput): Recommendation[] {
     // Rank by a lower confidence bound so tiny samples don't win on luck.
     const nEff = inp.site ? s.rounds + 0.5 * m.rounds + 0.25 * o.rounds : inp.mapKey ? m.rounds + 0.5 * o.rounds : o.rounds
     const wrLcb = wr - 0.5 * Math.sqrt((wr * (1 - wr)) / (nEff + k))
-    const personal = clamp01(0.5 + (wrLcb - priorWr) * 2.5 + (kpr - priorKpr) * 0.5)
+    // Relative to an op with no data (same penalty, prior mean) so "no data" scores a neutral 0.5.
+    const priorLcb = priorWr - 0.5 * Math.sqrt((priorWr * (1 - priorWr)) / k)
+    const personal = clamp01(0.5 + (wrLcb - priorLcb) * 2.5 + (kpr - priorKpr) * 0.5)
 
     // Meta: crowd win-rate delta + pick share, blended with baseline by sample size.
     const c = get(crowdScope, op.id)
     const base = inp.baseline.get(op.id) ?? 0.5
     const crowdWr = shrink(c.wins, c.rounds, 0.5, 30)
     // Pick rate ≈ share of team-rounds featuring the op (5 player slots per team-round).
-    const pickRate = crowdTotal ? Math.min(1, (c.rounds * 5) / crowdTotal) : 0
+    const pickRate = inp.crowdTeamRounds ? Math.min(1, c.rounds / inp.crowdTeamRounds) : crowdTotal ? Math.min(1, (c.rounds * 5) / crowdTotal) : 0
     const relPick = crowdTotal ? (c.rounds / crowdTotal) * sideOps : 1
     const pickTerm = Math.max(-0.15, Math.min(0.15, 0.05 * Math.log2(Math.max(relPick, 1 / 64))))
     const crowdScore = clamp01(0.5 + (crowdWr - 0.5) * 3 + pickTerm)

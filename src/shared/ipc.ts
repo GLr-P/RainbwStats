@@ -1,6 +1,7 @@
 // Main ↔ renderer contract. The preload exposes RsApi as window.rs; main registers a handler
 // for every method in API_METHODS (channel "rs:<method>"). Live updates arrive on "rs:live".
 import type { Agg, Side } from './types'
+import type { CatalogOverrides } from './catalog'
 
 export interface PlayerCard {
   profileId: string
@@ -132,10 +133,12 @@ export interface RsApi {
   lookupPlayer(name: string): Promise<PlayerLookup>
   rescan(): Promise<AppStatus>
   pickGameDir(): Promise<string | null>
+  /** Dataset + learned operators, so the renderer catalog matches main. */
+  catalog(): Promise<CatalogOverrides>
   onLive(cb: (s: LiveState) => void): () => void
 }
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive'>[]

@@ -149,6 +149,12 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     this.push()
   }
 
+  /** Shows the most recent recorded match regardless of age (screenshots / demo). */
+  async showLatest(): Promise<void> {
+    const latest = this.ctx.db.latestMatch()
+    if (latest) await this.showMatch(latest.matchId, true)
+  }
+
   /** Recompute recommendations after settings/roster changes. */
   refresh(): void { this.push() }
 }

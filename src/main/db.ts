@@ -103,6 +103,18 @@ export function openDb(path: string) {
       return new Map(rows.map(({ op, ...a }) => [op, a]))
     },
 
+    /** Number of (round × team) slots on a side for a filter: the pick-rate denominator. */
+    teamRounds(f: AggFilter = {}): number {
+      const where = ['rp.side IS NOT NULL']
+      const args: string[] = []
+      if (f.mapKey) { where.push('r.map_key = ?'); args.push(f.mapKey) }
+      if (f.site) { where.push('r.site = ?'); args.push(f.site) }
+      if (f.side) { where.push('rp.side = ?'); args.push(f.side) }
+      if (f.season) { where.push('r.season = ?'); args.push(f.season) }
+      return (db.prepare(`SELECT count(*) n FROM (SELECT DISTINCT rp.match_id, rp.round, rp.team FROM round_players rp
+        JOIN rounds r USING (match_id, round) WHERE ${where.join(' AND ')})`).get(...args) as { n: number }).n
+    },
+
     /** Sites seen per map (learned from replays), with round counts. */
     sites(mapKey: string): { site: string; rounds: number }[] {
       return db.prepare(`SELECT site, count(*) rounds FROM rounds WHERE map_key = ? AND site != '' GROUP BY site ORDER BY rounds DESC`)

@@ -1,0 +1,117 @@
+import { useState } from 'react'
+import type { AppStatus, Settings, ThemeSettings, Weights } from '../../../shared/ipc'
+import { rs } from '../lib'
+
+const DEFAULT_THEME: ThemeSettings = {
+  accent: '#e8b23a', attack: '#d9761c', defense: '#4a93e0', bg: '#0b0e13', surface: '#141922', text: '#e6e9ef',
+  fontScale: 1, density: 'comfortable', angled: true
+}
+
+export function SettingsPage({ settings: s, update, status, refreshStatus }: { settings: Settings; update: (p: Partial<Settings>) => Promise<void>; status: AppStatus | undefined; refreshStatus: () => void }) {
+  const theme = (p: Partial<ThemeSettings>) => update({ theme: { ...s.theme, ...p } })
+  const weight = (k: keyof Weights, v: number) => update({ weights: { ...s.weights, [k]: v } })
+  const Toggle = ({ k, label }: { k: 'alwaysOnTop' | 'autoSwitchToLive' | 'launchAtLogin' | 'ocrEnabled'; label: string }) => (
+    <label className="toggle"><input type="checkbox" checked={s[k]} onChange={(e) => void update({ [k]: e.target.checked })} />{label}</label>
+  )
+  const Panel = ({ k, label }: { k: keyof Settings['panels']; label: string }) => (
+    <label className="toggle"><input type="checkbox" checked={s.panels[k]} onChange={(e) => void update({ panels: { ...s.panels, [k]: e.target.checked } })} />{label}</label>
+  )
+  return (
+    <div className="settings">
+      <Account status={status} refresh={refreshStatus} />
+
+      <div className="panel">
+        <h2>Game & data</h2>
+        <div className="field">Game folder<code className="faint">{s.gameDir ?? 'not found'}</code></div>
+        <div className="row">
+          <button className="btn" onClick={() => void rs().pickGameDir().then(refreshStatus)}>Change…</button>
+          <button className="btn" onClick={() => void rs().rescan().then(refreshStatus)}>Rescan replays</button>
+        </div>
+        {status && <div className="small muted">{status.rounds} rounds · {status.matches} matches · {status.players} players · dataset {status.datasetVersion}</div>}
+        <div className="small muted">In Siege, turn on <b>Options → General → Match Replay</b> so every match is recorded.</div>
+      </div>
+
+      <div className="panel">
+        <h2>Behaviour</h2>
+        <Toggle k="autoSwitchToLive" label="Jump to Live when a match is detected" />
+        <Toggle k="alwaysOnTop" label="Keep window on top" />
+        <Toggle k="launchAtLogin" label="Start with Windows" />
+        <Toggle k="ocrEnabled" label="Read map and side from screen before round 1 (OCR, beta)" />
+        <div className="small muted">OCR only looks at your screen while Siege runs and round 1 info is missing. Nothing leaves your PC.</div>
+      </div>
+
+      <div className="panel">
+        <h2>Live page</h2>
+        <Panel k="recommendations" label="Your picks" />
+        <Panel k="siteBreakdown" label="Picks by site" />
+        <Panel k="teams" label="Lobby (ranks, K/D, operators)" />
+        <Panel k="timeline" label="Round timeline" />
+        <label className="field">Picks shown: {s.topN}<input type="range" min={1} max={6} value={s.topN} onChange={(e) => void update({ topN: Number(e.target.value) })} /></label>
+      </div>
+
+      <div className="panel">
+        <h2>Recommendation weights</h2>
+        {(['personal', 'meta', 'comfort', 'teamfit'] as const).map((k) => (
+          <label className="field" key={k}>
+            {({ personal: 'Your performance on this map/site', meta: 'Meta (replays, else baseline)', comfort: 'How much you play it', teamfit: 'Fills a team role' })[k]}: {Math.round(s.weights[k] * 100)}
+            <input type="range" min={0} max={1} step={0.05} value={s.weights[k]} onChange={(e) => void weight(k, Number(e.target.value))} />
+          </label>
+        ))}
+        <label className="field">Rounds before trusting your own stats: {s.minRounds}<input type="range" min={2} max={30} value={s.minRounds} onChange={(e) => void update({ minRounds: Number(e.target.value) })} /></label>
+      </div>
+
+      <div className="panel">
+        <h2>Theme</h2>
+        <div className="colors">
+          {(['accent', 'attack', 'defense', 'bg', 'surface', 'text'] as const).map((k) => (
+            <label key={k}><input type="color" value={s.theme[k]} onChange={(e) => void theme({ [k]: e.target.value })} />{k}</label>
+          ))}
+        </div>
+        <label className="field">Text size: {Math.round(s.theme.fontScale * 100)}%<input type="range" min={0.85} max={1.4} step={0.05} value={s.theme.fontScale} onChange={(e) => void theme({ fontScale: Number(e.target.value) })} /></label>
+        <label className="toggle"><input type="checkbox" checked={s.theme.density === 'compact'} onChange={(e) => void theme({ density: e.target.checked ? 'compact' : 'comfortable' })} />Compact spacing</label>
+        <label className="toggle"><input type="checkbox" checked={s.theme.angled} onChange={(e) => void theme({ angled: e.target.checked })} />Angled corners</label>
+        <button className="btn" onClick={() => void update({ theme: DEFAULT_THEME })}>Reset theme</button>
+      </div>
+    </div>
+  )
+}
+
+function Account({ status, refresh }: { status: AppStatus | undefined; refresh: () => void }) {
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [code, setCode] = useState('')
+  const [need2fa, setNeed2fa] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const run = async (fn: () => Promise<{ ok: boolean; twoFactor?: boolean; error?: string }>) => {
+    setBusy(true); setMsg(null)
+    const r = await fn()
+    setBusy(false)
+    if (r.twoFactor) { setNeed2fa(true); setMsg('Enter the code from your authenticator / email') }
+    else if (!r.ok) setMsg(r.error ?? 'Login failed')
+    else { setNeed2fa(false); setPw(''); setCode(''); refresh() }
+  }
+  return (
+    <div className="panel">
+      <h2>Ubisoft account</h2>
+      {status?.loggedIn ? (
+        <>
+          <div>Connected{status.myName ? ` as ${status.myName}` : ''}.</div>
+          <div><button className="btn" onClick={() => void rs().logout().then(refresh)}>Log out</button></div>
+        </>
+      ) : (
+        <form style={{ display: 'flex', flexDirection: 'column', gap: 8 }} onSubmit={(e) => { e.preventDefault(); void run(need2fa ? () => rs().submitTwoFactor(code) : () => rs().login(email, pw)) }}>
+          {!need2fa ? (
+            <>
+              <input type="text" autoComplete="username" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Ubisoft email" />
+              <input type="password" autoComplete="current-password" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Ubisoft password" />
+            </>
+          ) : <input type="text" inputMode="numeric" placeholder="2FA code" value={code} onChange={(e) => setCode(e.target.value)} aria-label="Two-factor code" autoFocus />}
+          <div><button className="btn primary" disabled={busy}>{busy ? 'Connecting…' : need2fa ? 'Verify' : 'Log in'}</button></div>
+        </form>
+      )}
+      {msg && <div className="warn small">{msg}</div>}
+      <div className="small muted">Used only to fetch ranks and K/D for players in your lobby. Your password is encrypted with Windows (DPAPI) and only sent to Ubisoft. An alternate account works fine.</div>
+    </div>
+  )
+}
