@@ -96,17 +96,18 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 - DoD: parses the local Y11S3 replay (6 rounds) with correct map/site/ops/winner; ingest twice = no dupes; parse < 100 ms per round.
 
 ### Phase 2 — Ubisoft API client
-- [ ] Login (email/password, safeStorage-encrypted), 2FA code flow, ticket cache + background refresh
-- [ ] Profiles by name / by IDs (batched), full_profiles (rank/RP/max/W-L/K-D) batched, level/playtime
-- [ ] Response guards (never crash on shape change), 429 backoff, 10-min per-player cache
-- [ ] Rank snapshot on every fetch → history
-- [ ] Probe past-season rank endpoints (document results here)
+- [~] Login (email/password, safeStorage-encrypted), 2FA code flow, ticket cache + background refresh
+- [x] Profiles by name / by IDs (batched), full_profiles (rank/RP/max/W-L/K-D) batched, level/playtime
+- [x] Response guards (never crash on shape change), 429 backoff, 10-min per-player cache
+- [x] Rank snapshot on every fetch → history
+- [ ] Probe past-season rank endpoints (needs a real login → user check)
 - DoD: unit tests on recorded fixtures; manual test with a real login (user step).
 
 ### Phase 3 — Recommendation engine + roster + seed meta
-- [ ] Operator metadata (side, roles, speed) for the full Y11S3 roster
-- [ ] Seed meta dataset v1 (baseline tiers, flagged "baseline" in UI) + map/site list
-- [ ] Engine with explainable reasons + configurable weights
+- [x] Operator metadata (side, roles, speed) for the full Y11S3 roster
+- [x] Seed meta dataset v1 (baseline tiers, flagged "baseline" in UI) + map/site list
+- [x] Engine with explainable reasons + configurable weights
+- [x] Auto-learn unknown operators (new seasons) from replay header role names
 - DoD: unit tests cover cold start (no data), roster filtering, bans, site-specific vs map fallback, determinism.
 
 ### Phase 4 — UI
@@ -172,6 +173,8 @@ weapon/attachment stats from replays · export CSV · per-patch diff view ("what
 |---|---|---|
 | 2026-10-19 | 0 | check ✅ (tsc + 1 test), smoke ✅ `SMOKE OK`, pushed to GLr-P/RainbwStats |
 | 2026-10-19 | 1 | check ✅ 13 tests. Local Y11S3 replay: 6/6 rounds parsed in 33–79 ms (header-only ~ same; zstd dominates). Found new Plane world ID 439976373310. Rauora confirmed attacker. Winner from score delta, one winner per round ✅. Ingest idempotent ✅. Game dir auto-detected (Steam) ✅ |
+| 2026-10-19 | 2 | check ✅ 22 tests: login, 2FA, remember-me refresh (no password resend), 401 retry, 429 typed error, junk-shape tolerance, lobby batching + cache + rank snapshots, logged-out degradation. Real login untested (user check) |
+| 2026-10-19 | 3 | check ✅ 30 tests. Tests caught 2 real flaws: tiny samples beating reliable ones (→ lower-confidence-bound ranking) and saturating pick-rate term (→ log-scaled, capped). Cold start, roster/bans, site lift, crowd>baseline, team fit, determinism covered |
 
 ## 7. User checks (things I can't verify myself)
 - [ ] Enable Match Replay in Siege settings (if not already) so every match is recorded

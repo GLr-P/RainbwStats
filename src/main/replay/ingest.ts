@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import type { Db } from '../db'
 import { parseRound, type ReplayRound } from './parser'
 import { normalizeRound } from './normalize'
-import { sideOfOperator } from '../../shared/catalog'
+import { applyCatalogOverrides, operatorById, sideOfOperator, type CatalogOverrides } from '../../shared/catalog'
+import { RECRUIT_ID } from '../../shared/data/operators'
 import type { RoundRecord } from '../../shared/types'
 
 export const parseFile = (path: string, headerOnly = false): ReplayRound =>
@@ -15,7 +16,9 @@ export function ingestFile(db: Db, path: string, force = false): RoundRecord | n
   const prev = db.fileStatus(path)
   if (!force && prev && prev.mtime_ms === mtime) return null
   try {
-    const rec = normalizeRound(parseFile(path))
+    const parsed = parseFile(path)
+    if (learnOperators(db, parsed)) Object.assign(parsed, parseFile(path)) // re-derive sides with new knowledge
+    const rec = normalizeRound(parsed)
     db.saveRound(rec)
     db.markFile(path, mtime)
     return rec
@@ -36,3 +39,24 @@ export function ingestReplayRoot(db: Db, root: string): number {
   for (const dir of dirs) for (const f of listRoundFiles(dir)) if (ingestFile(db, f)) n++
   return n
 }
+
+type Learned = NonNullable<CatalogOverrides['operators']>
+
+/** Learns names of operators the catalog doesn't know (new seasons) from the replay header. */
+export function learnOperators(db: Db, r: ReplayRound): boolean {
+  const learned = db.getJson<Learned>('learnedOperators') ?? []
+  let changed = false
+  for (const p of r.players) {
+    if (p.operatorId === RECRUIT_ID || operatorById(p.operatorId) || !p.roleName) continue
+    const side = r.teams[p.teamIndex].role
+    if (!side || learned.some((l) => l.id === p.operatorId)) continue
+    const name = p.roleName.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase())
+    learned.push({ id: p.operatorId, name, side })
+    changed = true
+  }
+  if (changed) { db.setJson('learnedOperators', learned); applyCatalogOverrides({ operators: learned }) }
+  return changed
+}
+
+/** Applies previously learned operators at startup. */
+export const applyLearned = (db: Db): void => applyCatalogOverrides({ operators: db.getJson<Learned>('learnedOperators') ?? [] })

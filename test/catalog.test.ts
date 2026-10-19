@@ -29,3 +29,21 @@ describe('catalog', () => {
     expect(steamLibraries(vdf)).toEqual(['C:\\Program Files (x86)\\Steam', 'D:\\SteamLibrary'])
   })
 })
+
+import { openDb } from '../src/main/db'
+import { learnOperators } from '../src/main/replay/ingest'
+import type { ReplayRound } from '../src/main/replay/parser'
+
+describe('operator learning', () => {
+  it('learns unknown operator names from the replay header', () => {
+    const db = openDb(':memory:')
+    const team = { name: '', score: 0, startingScore: 0, won: false, winCondition: 'Unknown' as const }
+    const r = {
+      teams: [{ ...team, role: 'defense' }, { ...team, role: 'attack' }],
+      players: [{ operatorId: '999000111', roleName: 'SOLID SNAKE', teamIndex: 0 }, { operatorId: '92270642344', roleName: 'SLEDGE', teamIndex: 1 }]
+    } as unknown as ReplayRound
+    expect(learnOperators(db, r)).toBe(true)
+    expect(operatorById('999000111')).toMatchObject({ name: 'Solid Snake', side: 'defense' })
+    expect(learnOperators(db, r)).toBe(false)
+  })
+})
