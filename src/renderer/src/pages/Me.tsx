@@ -45,6 +45,12 @@ function RankCard({ p }: { p: Performance }) {
             {r.abandons > 0 && <Stat label="Abandons" value={String(r.abandons)} cls="l" />}
           </div>
           <RpChart points={p.rpHistory} />
+          {p.pastRanks.length > 0 && (
+            <div className="row small" style={{ gap: 6, margin: '6px 0' }}>
+              <span className="muted">Past seasons:</span>
+              {p.pastRanks.slice(0, 8).map((r) => <span key={r.season} className="opchip" title={`End of ${r.season}`}>{r.season} <span style={{ marginLeft: 6 }}><RankBadge rank={r.rank} /></span></span>)}
+            </div>
+          )}
           <div className="small faint">Checked {when(r.at)}</div>
         </>
       )}

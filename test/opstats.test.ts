@@ -54,9 +54,11 @@ describe('Ubisoft Career operator stats', () => {
     expect(await sync.syncMine(ME)).toBe(true)
     const statsCalls = () => urls.filter((u) => u.includes('/v1/profiles/stats')).length
     const seasonsBefore = Object.keys(SEASON_CALENDAR).length // lifetime + every season incl. current
-    expect(statsCalls()).toBe(1 + seasonsBefore)
+    const pastRanks = seasonsBefore - 1 // one-time "rank at end of season" per past season
+    expect(statsCalls()).toBe(1 + seasonsBefore + pastRanks)
+    expect(urls.filter((u) => u.includes('RankingRankSeasonal'))).toHaveLength(pastRanks)
     await sync.syncMine(ME)
-    expect(statsCalls()).toBe(1 + seasonsBefore) // all fresh / immutable: no new requests
+    expect(statsCalls()).toBe(1 + seasonsBefore + pastRanks) // all fresh / immutable: no new requests
     const before = statsCalls()
     await sync.syncPlayers([ME, P2, 'name:bot'])
     expect(statsCalls() - before).toBe(2) // lifetime + current season, each one batched request (ME already fresh)

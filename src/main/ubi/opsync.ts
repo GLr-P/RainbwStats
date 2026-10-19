@@ -62,6 +62,15 @@ export class OpStatsSync {
       for (const s of past.sort((a, b) => seasonCodeToId(b) - seasonCodeToId(a))) {
         if (!this.db.apiFetchedAt(me, s)) await this.fetch([me], s) // immutable: fetch once
       }
+      // Past-season ranks, once per season (they never change).
+      const done = new Set(this.db.getJson<string[]>(`seasonRanks:${me}`) ?? [])
+      try {
+        for (const s of past.filter((x) => !done.has(x))) {
+          this.db.saveSeasonRanks(await this.ubi.seasonRanks([me], { code: s, calendarId: SEASON_CALENDAR[s]! }))
+          done.add(s)
+          this.db.setJson(`seasonRanks:${me}`, [...done])
+        }
+      } catch { /* optional extra: never fail the operator sync over it; retried next hour */ }
     })
   }
 

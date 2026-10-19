@@ -105,7 +105,7 @@ export function sessionOf(matches: MatchRow[], now: number): SessionStats | null
 export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Performance {
   const season = currentSeason(ctx)
   const me = ctx.me()
-  const empty: Performance = { me: null, season, rank: null, rpHistory: [], session: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], loggedIn }
+  const empty: Performance = { me: null, season, rank: null, rpHistory: [], pastRanks: [], session: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], loggedIn }
   if (!me) return empty
   const snaps = ctx.db.rankSnapshots(me, 'ranked', seasonCodeToId(season))
   const replays = ctx.db.recentMatches(60).map((m) => replayMatch(ctx.db.roundsOfMatch(m.matchId), me)).filter((m): m is MatchRow => !!m)
@@ -129,6 +129,7 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
     me: { profileId: me, name: ctx.db.playerName(me) ?? 'You' }, season,
     rank: last ? { rank: last.rank, rankPoints: last.rankPoints, maxRank: last.maxRank, maxRankPoints: last.maxRankPoints, wins: last.wins, losses: last.losses, abandons: last.abandons, kills: last.kills, deaths: last.deaths, at: last.fetchedAt } : null,
     rpHistory: changes(snaps).map((s) => ({ at: s.fetchedAt, rp: s.rankPoints, rank: s.rank })),
+    pastRanks: ctx.db.seasonRanks(me).filter((r) => r.season !== season && r.rank > 0 && r.rank <= 40).sort((a, b) => seasonCodeToId(b.season) - seasonCodeToId(a.season)),
     session: sessionOf(matches, now), matches, sides, ops, maps: [...maps.values()], loggedIn
   }
 }

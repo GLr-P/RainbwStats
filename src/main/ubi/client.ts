@@ -286,6 +286,25 @@ export class UbiClient {
     return out
   }
 
+  /** Ranked rank at the end of a past season (the official Career page's "RankingRankSeasonal"),
+   *  for many players: one request per 40 ids. Players with no ranked games that season are absent. */
+  async seasonRanks(ids: string[], season: { code: string; calendarId: string }): Promise<{ profileId: string; season: string; rank: number }[]> {
+    const out: { profileId: string; season: string; rank: number }[] = []
+    for (const part of chunk(ids, 40)) {
+      const data = await this.get(`/v1/profiles/stats?profileIds=${part.join(',')}&spaceId=${UBI.xplaySpace}&statNames=RankingRankSeasonal&calendarEntryId=${season.calendarId}`)
+      for (const p of arr(isObj(data) ? data['profiles'] : null).filter(isObj)) {
+        const st = isObj(p['stats']) ? p['stats'] : {}
+        const v = st['RankingRankSeasonal']
+        const rank = n(isObj(v) ? v['value'] : v)
+        if (rank > 0) out.push({ profileId: s(p['profileId']), season: season.code, rank })
+      }
+    }
+    return out
+  }
+
+  /** Raw stats response (diagnostics only: --probe-ranks). */
+  rawStats(path: string): Promise<unknown> { return this.get(path) }
+
   /** Your Ubisoft friends list (same call as the Ubisoft account site). */
   async friends(): Promise<{ profileId: string; name: string; favorite: boolean }[]> {
     const me = (await this.baseSession()).profileId || this.profileId

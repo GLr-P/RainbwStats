@@ -194,6 +194,8 @@ export interface Performance {
   season: string
   rank: { rank: number; rankPoints: number; maxRank: number; maxRankPoints: number; wins: number; losses: number; abandons: number; kills: number; deaths: number; at: string } | null
   rpHistory: { at: string; rp: number; rank: number }[]
+  /** Rank at the end of past seasons, newest first. */
+  pastRanks: { season: string; rank: number }[]
   session: SessionStats | null
   matches: MatchRow[]
   /** This season, all playlists (Ubisoft Career). */

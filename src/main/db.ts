@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS api_op_fetch (profile_id TEXT NOT NULL, season TEXT N
 -- What has been shared with the global crowd database (opt-in), so nothing is sent twice.
 CREATE TABLE IF NOT EXISTS crowd_sent_players (profile_id TEXT NOT NULL, season TEXT NOT NULL, fetched_at TEXT NOT NULL, PRIMARY KEY (profile_id, season));
 CREATE TABLE IF NOT EXISTS crowd_sent_matches (match_id TEXT PRIMARY KEY);
+-- Rank at the end of past seasons (Ubisoft Career "RankingRankSeasonal"); immutable once fetched.
+CREATE TABLE IF NOT EXISTS season_ranks (profile_id TEXT NOT NULL, season TEXT NOT NULL, rank INTEGER NOT NULL, PRIMARY KEY (profile_id, season));
 `
 
 export interface AggFilter {
@@ -267,6 +269,13 @@ export function openDb(path: string) {
       return db.prepare(`SELECT profile_id profileId, board, season_id seasonId, rank, rank_points rankPoints, max_rank maxRank,
           max_rank_points maxRankPoints, wins, losses, abandons, kills, deaths, fetched_at fetchedAt
         FROM rank_snapshots WHERE profile_id = ? AND board = ? AND season_id = ? ORDER BY fetched_at`).all(profileId, board, seasonId) as never
+    },
+    saveSeasonRanks(rows: { profileId: string; season: string; rank: number }[]): void {
+      const ins = db.prepare(`INSERT OR REPLACE INTO season_ranks VALUES (?, ?, ?)`)
+      tx(() => { for (const r of rows) ins.run(r.profileId, r.season, r.rank) })
+    },
+    seasonRanks(profileId: string): { season: string; rank: number }[] {
+      return db.prepare(`SELECT season, rank FROM season_ranks WHERE profile_id = ?`).all(profileId) as never
     },
     /** Latest ranked rank id seen for a player (null = never fetched). */
     latestRank(profileId: string): number | null {
