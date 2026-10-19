@@ -150,6 +150,54 @@ export interface GlobalMeta {
   lastUpload: { at: number; ops: number; rounds: number } | null
 }
 
+/** One game in your history: from a replay (map, rounds, K/D) and/or inferred from a ranked W/L change (RP delta). */
+export interface MatchRow {
+  id: string
+  at: string
+  kind: string // 'Ranked' | 'Quick' | 'Standard' | 'Custom' | 'Match'
+  source: 'replay' | 'rank' | 'both'
+  mapKey: string | null
+  result: 'win' | 'loss' | 'draw' | 'abandon' | 'unknown'
+  score: [number, number] | null
+  rpDelta: number | null
+  rankAfter: number | null
+  /** Several ranked games between two rank checks (no per-game detail). */
+  games?: { wins: number; losses: number; abandons: number }
+  kills: number
+  deaths: number
+  headshots: number
+  ops: string[]
+  rounds: { round: number; side: Side | null; site: string; op: string; opKey: string | null; won: boolean; kills: number; died: boolean }[]
+}
+export interface SessionStats {
+  active: boolean
+  start: string
+  end: string
+  matches: number
+  wins: number
+  losses: number
+  rpDelta: number | null
+  rounds: number
+  roundWins: number
+  kills: number
+  deaths: number
+  ops: { opKey: string; name: string; side: Side; rounds: number; wins: number }[]
+}
+export interface Performance {
+  me: { profileId: string; name: string } | null
+  season: string
+  rank: { rank: number; rankPoints: number; maxRank: number; maxRankPoints: number; wins: number; losses: number; abandons: number; kills: number; deaths: number; at: string } | null
+  rpHistory: { at: string; rp: number; rank: number }[]
+  session: SessionStats | null
+  matches: MatchRow[]
+  /** This season, all playlists (Ubisoft Career). */
+  sides: Record<Side, { rounds: number; wins: number }>
+  ops: { opKey: string; name: string; side: Side; rounds: number; wins: number }[]
+  /** From replays (non-custom when available). */
+  maps: { mapKey: string; matches: number; wins: number; rounds: number; roundWins: number }[]
+  loggedIn: boolean
+}
+
 export interface SimPerson { profileId: string; name: string; source: 'friend' | 'recent' }
 export interface SimRequest { mapKey: string; side: Side; myTeam: string[]; enemyTeam: string[] } // names or profile ids
 
@@ -205,6 +253,8 @@ export interface RsApi {
   loginWithUbisoft(): Promise<AuthResult>
   /** Ubisoft Career operator stats: yours ('me') or aggregated over players you've met ('others'). */
   apiOps(f: { who: 'me' | 'others'; season: string; playlist?: string }): Promise<ApiOps>
+  /** Your performance: rank, session, match history, breakdowns. */
+  performance(): Promise<Performance>
   /** Global crowd meta (downloaded; sharing is opt-in in Settings). */
   globalMeta(f: GlobalFilter): Promise<GlobalMeta>
   /** Uploads pending data (if sharing) and re-downloads the global meta now. */
@@ -226,5 +276,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'performance', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate'>[]

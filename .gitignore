@@ -13,3 +13,6 @@ research/cache/
 
 # Wrangler local state (local D1 emulator, build cache)
 .wrangler/
+
+# Personal notes between the user and Claude
+messages.md

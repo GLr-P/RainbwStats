@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, Tray } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import type { RoundRecord } from '../shared/types'
-import { demoLobby } from './demo'
+import { demoLobby, seedDemoHistory } from './demo'
+import { seasonCodeToId } from '../shared/ranks'
 import { Updater } from './updater'
 import { ubisoftWebLogin } from './ubi/weblogin'
 import { OpStatsSync } from './ubi/opsync'
@@ -16,6 +17,7 @@ import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
 import { apiOps, currentSeason, globalMeta, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
 import { CrowdSync } from './crowd'
+import { performance } from './performance'
 import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
 import { SEED_SITES } from '../shared/data/maps'
 import { rankedPool } from '../shared/data/sitePicks'
@@ -78,6 +80,7 @@ app.whenReady().then(async () => {
   const crowd = new CrowdSync(db, { url: () => settings.get().crowdUrl, season: () => dataset.get().season, enabled: () => settings.get().shareCrowd && !demo && !isSmoke })
   const ctx: Ctx = { db, settings: () => settings.get(), dataset: () => dataset.get(), me: () => ubi.profileId ?? db.mostCommonRecorder(), crowd: () => crowd.meta() }
   const lobby = demo ? demoLobby() : new LobbyService(ubi, db)
+  if (demo) { const me = db.mostCommonRecorder(); if (me) seedDemoHistory(db, me, dataset.get().season, seasonCodeToId(dataset.get().season)) }
   const replayRoot = () => (settings.get().gameDir ? replayRootOf(settings.get().gameDir!) : null)
   const engine = new LiveEngine(ctx, lobby, replayRoot)
   const opsync = new OpStatsSync(ubi, db, () => currentSeason(ctx))
@@ -96,6 +99,9 @@ app.whenReady().then(async () => {
   if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
   if (!isSmoke) { syncMine(); setInterval(syncMine, 3600_000) }
   if (!isSmoke && !demo) { setTimeout(() => void crowdTick(), 20_000); setInterval(() => void crowdTick(), 3600_000) }
+  // Your rank every 10 min while Siege runs (and once at start): each ranked W/L change becomes a history entry with its RP.
+  const trackMe = () => { const me = ctx.me(); if (me && ubi.canAuth && !demo) void lobby.cards([me]) }
+  if (!isSmoke) { setTimeout(trackMe, 30_000); setInterval(() => { if (engine.state.gameRunning) trackMe() }, 10 * 60_000) }
   void dataset.refresh(settings.get().datasetUrl).then((changed) => changed && engine.refresh())
   // Installer builds update themselves from GitHub Releases (downloaded in background, applied on quit).
   const updates = new Updater((s) => win?.webContents.send('rs:update', s))
@@ -154,6 +160,7 @@ app.whenReady().then(async () => {
       } catch (e) { return authErr(e) }
     },
     apiOps: async (f) => apiOps(ctx, f, opsync.lastError),
+    performance: async () => performance(ctx, ubi.canAuth),
     globalMeta: async (f) => globalMeta(ctx, f, { sharing: settings.get().shareCrowd, lastError: crowd.lastError, lastUpload: crowd.lastUpload }),
     refreshGlobal: () => crowdTick(true),
     mapGuide: async (mapKey, side) => mapGuide(ctx, mapKey, side),
@@ -272,7 +279,7 @@ app.whenReady().then(async () => {
         writeFileSync(join(shots, '0-waiting.png'), (await win!.webContents.capturePage()).toPNG())
         await engine.showLatest()
         await new Promise((r) => setTimeout(r, 1500)) // let a busy machine finish rendering the pushed state
-        for (const [i, label] of ['Live', 'Roster', 'Ops', 'Meta', 'Players', 'Settings', 'Maps'].entries()) {
+        for (const [i, label] of ['Live', 'Roster', 'Ops', 'Meta', 'Players', 'Settings', 'Maps', 'Me'].entries()) {
           await js(`[...document.querySelectorAll('.nav button')].find(b => b.textContent.trim() === '${label}')?.click()`)
           await new Promise((r) => setTimeout(r, 700))
           writeFileSync(join(shots, `${i + 1}-${label.toLowerCase()}.png`), (await win!.webContents.capturePage()).toPNG())

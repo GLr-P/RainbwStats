@@ -251,6 +251,12 @@ export function openDb(path: string) {
         WHERE r.match_id NOT IN (SELECT match_id FROM crowd_sent_matches) AND rp.side IS NOT NULL AND r.site != ''
         ORDER BY r.played_at, r.match_id, r.round`).all() as never
     },
+    /** Every snapshot of one board/season for a player, oldest first (for RP history and match inference). */
+    rankSnapshots(profileId: string, board: string, seasonId: number): RankSnapshot[] {
+      return db.prepare(`SELECT profile_id profileId, board, season_id seasonId, rank, rank_points rankPoints, max_rank maxRank,
+          max_rank_points maxRankPoints, wins, losses, abandons, kills, deaths, fetched_at fetchedAt
+        FROM rank_snapshots WHERE profile_id = ? AND board = ? AND season_id = ? ORDER BY fetched_at`).all(profileId, board, seasonId) as never
+    },
     /** Latest ranked rank id seen for a player (null = never fetched). */
     latestRank(profileId: string): number | null {
       return (db.prepare(`SELECT rank FROM rank_snapshots WHERE profile_id = ? AND board = 'ranked' ORDER BY fetched_at DESC LIMIT 1`).get(profileId) as { rank: number } | undefined)?.rank ?? null
