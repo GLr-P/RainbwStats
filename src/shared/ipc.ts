@@ -137,7 +137,7 @@ export interface AppStatus {
 }
 
 export interface ApiOpRow { opKey: string; name: string; side: Side; rounds: number; wins: number; players: number }
-export interface ApiOps { rows: ApiOpRow[]; players: number; seasons: string[]; current: string; lastError: string | null }
+export interface ApiOps { rows: ApiOpRow[]; players: number; seasons: string[]; current: string; lastError: string | null; yourBand: number | null }
 
 /** Global crowd database view (all RainbwStats users). Without a map: ranked Career stats; with a map: replay rounds. */
 export interface GlobalFilter { band?: number; mapKey?: string; site?: string }
@@ -222,6 +222,13 @@ export interface MapGuide {
   info: { version: string; patch: string; rankedScope: string; sources: { name: string; detail: string; url: string }[]; notes: string[] }
 }
 
+/** Ranked numbers that moved between the previous and the current patch data. */
+export interface PatchChanges {
+  from: string | null
+  to: string
+  rows: { opKey: string; name: string; side: Side; deltaBefore: number | null; deltaAfter: number | null; banBefore: number | null; banAfter: number | null }[]
+}
+
 export interface FileResult { ok: boolean; path?: string; error?: string }
 
 export interface AuthResult { ok: boolean; twoFactor?: boolean; error?: string }
@@ -268,7 +275,9 @@ export interface RsApi {
   /** Opens Ubisoft's own login page (Xbox / PlayStation / Facebook / email). */
   loginWithUbisoft(): Promise<AuthResult>
   /** Ubisoft Career operator stats: yours ('me') or aggregated over players you've met ('others'). */
-  apiOps(f: { who: 'me' | 'others'; season: string; playlist?: string }): Promise<ApiOps>
+  apiOps(f: { who: 'me' | 'others'; season: string; playlist?: string; band?: number }): Promise<ApiOps>
+  /** What changed between the previous patch's data and this one. */
+  patchChanges(): Promise<PatchChanges>
   /** Your performance: rank, session, match history, breakdowns. */
   performance(): Promise<Performance>
   /** Global crowd meta (downloaded; sharing is opt-in in Settings). */
@@ -294,5 +303,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'openOcrDebug', 'exportData', 'importData', 'exportCsv', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'performance', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'openOcrDebug', 'exportData', 'importData', 'exportCsv', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'patchChanges', 'performance', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate' | 'onSettings'>[]

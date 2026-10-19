@@ -59,6 +59,11 @@ export interface RankSnapshot {
 
 export type Db = ReturnType<typeof openDb>
 
+/** Players whose latest ranked rank falls in a band (0 unranked, 1 Copper … 7 Diamond, 8 Champion; see shared/crowd.ts bandOf). */
+const IN_BAND = `profile_id IN (SELECT r.profile_id FROM rank_snapshots r WHERE r.board = 'ranked'
+  AND r.fetched_at = (SELECT max(r2.fetched_at) FROM rank_snapshots r2 WHERE r2.profile_id = r.profile_id AND r2.board = 'ranked')
+  AND (CASE WHEN r.rank <= 0 THEN 0 WHEN r.rank >= 36 THEN 8 ELSE (r.rank - 1) / 5 + 1 END) = ?)`
+
 /** Tables that move between PCs (settings, credentials, caches and sharing state stay local). */
 const PORTABLE = ['rounds', 'round_players', 'players', 'rank_snapshots', 'api_op_stats', 'api_op_fetch'] as const
 
@@ -219,9 +224,10 @@ export function openDb(path: string) {
       return (db.prepare(`SELECT fetched_at f FROM api_op_fetch WHERE profile_id = ? AND season = ?`).get(profileId, season) as { f: string } | undefined)?.f ?? null
     },
     /** Ubisoft per-operator aggregates. `profileId` = one player; `excludeProfileId` = everyone else (meta). */
-    apiOpAggs(f: { profileId?: string; excludeProfileId?: string; season: string; playlist?: string }): Map<string, { rounds: number; wins: number; players: number }> {
+    apiOpAggs(f: { profileId?: string; excludeProfileId?: string; season: string; playlist?: string; band?: number }): Map<string, { rounds: number; wins: number; players: number }> {
       const where = ['season = ?']
-      const args: string[] = [f.season]
+      const args: (string | number)[] = [f.season]
+      if (f.band !== undefined) { where.push(IN_BAND); args.push(f.band) }
       if (f.profileId) { where.push('profile_id = ?'); args.push(f.profileId) }
       if (f.excludeProfileId) { where.push('profile_id != ?'); args.push(f.excludeProfileId) }
       if (f.playlist) { where.push('playlist = ?'); args.push(f.playlist) }
@@ -229,8 +235,10 @@ export function openDb(path: string) {
         FROM api_op_stats WHERE ${where.join(' AND ')} GROUP BY op_key`).all(...args) as { k: string; rounds: number; wins: number; players: number }[]
       return new Map(rows.map(({ k, ...a }) => [k, a]))
     },
-    apiPlayerCount(season: string, excludeProfileId?: string): number {
-      return (db.prepare(`SELECT count(DISTINCT profile_id) n FROM api_op_stats WHERE season = ? AND profile_id != ?`).get(season, excludeProfileId ?? '') as { n: number }).n
+    apiPlayerCount(season: string, excludeProfileId?: string, band?: number): number {
+      return band === undefined
+        ? (db.prepare(`SELECT count(DISTINCT profile_id) n FROM api_op_stats WHERE season = ? AND profile_id != ?`).get(season, excludeProfileId ?? '') as { n: number }).n
+        : (db.prepare(`SELECT count(DISTINCT profile_id) n FROM api_op_stats WHERE season = ? AND profile_id != ? AND ${IN_BAND}`).get(season, excludeProfileId ?? '', band) as { n: number }).n
     },
     apiSeasons(profileId: string): string[] {
       return (db.prepare(`SELECT DISTINCT season FROM api_op_stats WHERE profile_id = ? ORDER BY season DESC`).all(profileId) as { season: string }[]).map((r) => r.season)

@@ -45,3 +45,33 @@ describe('researched meta (Y11S3)', () => {
     expect(r[0]!.reasons.join(' ')).toMatch(/Ranked meta \(official, Plat\+\) \+3%/)
   })
 })
+
+describe('patch changes', () => {
+  it('lists operators whose ranked numbers moved', async () => {
+    const { patchChanges } = await import('../src/main/services')
+    const cur = meta()
+    const prev = JSON.parse(JSON.stringify(cur)) as typeof cur
+    prev.patch = 'Y11S3.1'
+    prev.ranked.winDelta.defense['rook'] = 0.01
+    const d = patchChanges(prev, cur)
+    expect(d.from).toBe('Y11S3.1')
+    expect(d.rows).toHaveLength(1)
+    expect(d.rows[0]).toMatchObject({ opKey: 'rook', side: 'defense', deltaBefore: 0.01, deltaAfter: cur.ranked.winDelta.defense['rook'] })
+    expect(patchChanges(null).rows).toEqual([])
+  })
+})
+
+describe('previous patch tracking', () => {
+  it('remembers the last different patch seen on this PC', async () => {
+    const { mkdtempSync, writeFileSync, existsSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { DatasetStore } = await import('../src/main/dataset')
+    const dir = mkdtempSync(join(tmpdir(), 'rs-patch-'))
+    expect(new DatasetStore(dir).previousMeta).toBeNull()
+    expect(existsSync(join(dir, 'meta-seen.json'))).toBe(true)
+    writeFileSync(join(dir, 'meta-seen.json'), JSON.stringify({ ...meta(), version: '2026.07.01-Y11S2.3', patch: 'Y11S2.3' }))
+    expect(new DatasetStore(dir).previousMeta?.patch).toBe('Y11S2.3')
+    expect(new DatasetStore(dir).previousMeta?.patch).toBe('Y11S2.3') // stays until the next patch
+  })
+})

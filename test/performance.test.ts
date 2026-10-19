@@ -89,3 +89,17 @@ describe('export / import between PCs', () => {
     expect(csv).toMatch(/plane,loss,2,4/)
   })
 })
+
+describe('rank-banded meta of players you met', () => {
+  it('filters players by their latest ranked rank', () => {
+    const db = openDb(':memory:')
+    const r = (id: string, rank: number, at: string) => db.saveRank({ ...snap(at, 1, 1, 3000), profileId: id, rank })
+    r('gold', 18, '2026-10-20T10:00:00Z')
+    r('plat', 18, '2026-10-19T10:00:00Z'); r('plat', 22, '2026-10-20T10:00:00Z') // promoted: latest counts
+    for (const id of ['gold', 'plat']) db.saveApiOpStats(id, ['Y11S3'], [{ season: 'Y11S3', playlist: 'ranked', opKey: id === 'gold' ? 'ash' : 'rook', rounds: 10, wins: 5 }], '2026-10-20T10:00:00Z')
+    expect([...db.apiOpAggs({ season: 'Y11S3', band: 4 }).keys()]).toEqual(['ash'])
+    expect([...db.apiOpAggs({ season: 'Y11S3', band: 5 }).keys()]).toEqual(['rook'])
+    expect(db.apiPlayerCount('Y11S3', '', 5)).toBe(1)
+    expect(db.apiOpAggs({ season: 'Y11S3' }).size).toBe(2)
+  })
+})

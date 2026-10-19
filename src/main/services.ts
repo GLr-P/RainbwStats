@@ -1,12 +1,12 @@
 // Query layer shared by IPC handlers and the live engine.
 import type { Db } from './db'
 import type { Dataset } from '../shared/data/dataset'
-import type { ApiOps, GlobalFilter, GlobalMeta, GuideOp, LivePlayer, MapBans, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
+import type { ApiOps, GlobalFilter, GlobalMeta, GuideOp, LivePlayer, MapBans, PatchChanges, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
 import { baselineFor, recommend, ROLE_PRIOR, type AggMap } from '../shared/recommend'
 import { allOperators, operatorById, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import type { RoleTag } from '../shared/data/operators'
 import { KIND_FIT, mapStrongFor, proBansFor, seedSitesFor, siteKindFor, siteTiersFor } from '../shared/data/sitePicks'
-import { meta } from '../shared/data/meta'
+import { meta, type MetaData } from '../shared/data/meta'
 import type { Agg, Side } from '../shared/types'
 import { bandOf, type CrowdMeta } from '../shared/crowd'
 import { suggestBans } from '../shared/bans'
@@ -74,7 +74,7 @@ export function recentWeights(ctx: Ctx, side: Side, now = Date.now()): Map<strin
 }
 
 /** Ubisoft Career aggregates (by operator key) → AggMap by operator id for one side. */
-function apiAggMap(ctx: Ctx, side: Side, f: { profileId?: string; excludeProfileId?: string; season: string }): { map: AggMap; players: number } {
+function apiAggMap(ctx: Ctx, side: Side, f: { profileId?: string; excludeProfileId?: string; season: string; band?: number }): { map: AggMap; players: number } {
   const map: AggMap = new Map()
   let players = 0
   for (const [key, a] of ctx.db.apiOpAggs(f)) {
@@ -83,7 +83,7 @@ function apiAggMap(ctx: Ctx, side: Side, f: { profileId?: string; excludeProfile
     map.set(op.id, { rounds: a.rounds, wins: a.wins, kills: 0, deaths: 0, headshots: 0 })
     players = Math.max(players, a.players)
   }
-  return { map, players: f.excludeProfileId !== undefined ? ctx.db.apiPlayerCount(f.season, f.excludeProfileId) : players }
+  return { map, players: f.excludeProfileId !== undefined ? ctx.db.apiPlayerCount(f.season, f.excludeProfileId, f.band) : players }
 }
 
 export const currentSeason = (ctx: Ctx): string => ctx.dataset().season
@@ -101,15 +101,17 @@ export function mainsOf(ctx: Ctx, profileId: string, top = 3): LivePlayer['mains
 }
 
 /** Ubisoft Career operator table for the Operators/Meta pages. */
-export function apiOps(ctx: Ctx, f: { who: 'me' | 'others'; season: string; playlist?: string }, lastError: string | null): ApiOps {
+export function apiOps(ctx: Ctx, f: { who: 'me' | 'others'; season: string; playlist?: string; band?: number }, lastError: string | null): ApiOps {
   const me = ctx.me() ?? ''
-  const aggs = ctx.db.apiOpAggs({ season: f.season, playlist: f.playlist, ...(f.who === 'me' ? { profileId: me } : { excludeProfileId: me }) })
+  const band = f.who === 'others' ? f.band : undefined
+  const aggs = ctx.db.apiOpAggs({ season: f.season, playlist: f.playlist, band, ...(f.who === 'me' ? { profileId: me } : { excludeProfileId: me }) })
   const rows = [...aggs].map(([key, a]) => {
     const op = operatorByKey(key)
     return op ? { opKey: key, name: op.name, side: op.side, ...a } : null
   }).filter((x): x is ApiOps['rows'][number] => !!x).sort((a, b) => b.rounds - a.rounds)
   const seasons = [...new Set(['all', currentSeason(ctx), ...ctx.db.apiSeasons(me)])]
-  return { rows, players: f.who === 'me' ? (rows.length ? 1 : 0) : ctx.db.apiPlayerCount(f.season, me), seasons, current: currentSeason(ctx), lastError }
+  const rank = me ? ctx.db.latestRank(me) : null
+  return { rows, players: f.who === 'me' ? (rows.length ? 1 : 0) : ctx.db.apiPlayerCount(f.season, me, band), seasons, current: currentSeason(ctx), lastError, yourBand: rank ? bandOf(rank) : null }
 }
 
 /** Minimum lifetime rounds on an operator for it to count as one you play. */
@@ -172,7 +174,12 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
   // Season meta: everyone on RainbwStats (your rank band when it has enough players) or the players you met.
   const g = ctx.crowd?.() ?? null
   const band = yourBand(ctx, g)
-  const metPlayers = apiAggMap(ctx, q.side, { excludeProfileId: me ?? '', season })
+  // Players you met at your own rank once there are enough of them (what wins at your level), else everyone you met.
+  const myRank = me ? ctx.db.latestRank(me) : null
+  const metBand = myRank ? bandOf(myRank) : undefined
+  const metPlayers = metBand !== undefined && ctx.db.apiPlayerCount(season, me ?? '', metBand) >= 30
+    ? apiAggMap(ctx, q.side, { excludeProfileId: me ?? '', season, band: metBand })
+    : apiAggMap(ctx, q.side, { excludeProfileId: me ?? '', season })
   const globalPlayers = band !== null ? bandPlayers(g, band) : g?.players ?? 0
   const crowdSeason = globalPlayers > metPlayers.players ? { map: toAggMap(globalOps(g, band ?? undefined), q.side), players: globalPlayers } : metPlayers
   // Familiarity: replay recency plus how much you've played each op this season (Ubisoft).
@@ -331,4 +338,24 @@ export function banSuggestions(ctx: Ctx, mapKey: string, top = 3): MapBans {
     yours: effectiveRoster(ctx, side).map((id) => operatorById(id)?.key).filter((k): k is string => !!k)
   }, top)
   return { attack: forSide('attack'), defense: forSide('defense') }
+}
+
+/** Operators whose official ranked numbers moved between the previous patch's data and the current one. */
+export function patchChanges(prev: MetaData | null, cur: MetaData = meta()): PatchChanges {
+  if (!prev) return { from: null, to: cur.patch, rows: [] }
+  const rows: PatchChanges['rows'] = []
+  for (const side of ['attack', 'defense'] as const) {
+    const keys = new Set([...Object.keys(cur.ranked.winDelta[side]), ...Object.keys(prev.ranked.winDelta[side]), ...Object.keys(cur.ranked.bans[side]), ...Object.keys(prev.ranked.bans[side])])
+    for (const key of keys) {
+      const op = operatorByKey(key)
+      if (!op) continue
+      const r = {
+        opKey: key, name: op.name, side,
+        deltaBefore: prev.ranked.winDelta[side][key] ?? null, deltaAfter: cur.ranked.winDelta[side][key] ?? null,
+        banBefore: prev.ranked.bans[side][key] ?? null, banAfter: cur.ranked.bans[side][key] ?? null
+      }
+      if (r.deltaBefore !== r.deltaAfter || r.banBefore !== r.banAfter) rows.push(r)
+    }
+  }
+  return { from: prev.patch, to: cur.patch, rows }
 }

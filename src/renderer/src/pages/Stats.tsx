@@ -49,7 +49,8 @@ function UbisoftOps({ who }: { who: 'me' | 'others' }) {
   const [season, setSeason] = useState('all')
   const [playlist, setPlaylist] = useState('')
   const [side, setSide] = useState<Side | ''>('')
-  const [data] = useData(() => rs().apiOps({ who, season, playlist: playlist || undefined }), [who, season, playlist])
+  const [band, setBand] = useState('')
+  const [data] = useData(() => rs().apiOps({ who, season, playlist: playlist || undefined, band: band === '' ? undefined : Number(band) }), [who, season, playlist, band])
   const avgs = sideAvgs(data?.rows ?? [])
   type Row = NonNullable<typeof data>['rows'][number]
   const delta = (r: { side: Side; wins: number; rounds: number }) => winDelta(r.wins, r.rounds, avgs[r.side])
@@ -67,6 +68,12 @@ function UbisoftOps({ who }: { who: 'me' | 'others' }) {
         <select value={playlist} onChange={(e) => setPlaylist(e.target.value)} aria-label="Playlist">
           <option value="">All playlists</option><option value="ranked">Ranked</option><option value="unranked">Unranked</option><option value="quick">Quick match</option>
         </select>
+        {who === 'others' && (
+          <select value={band} onChange={(e) => setBand(e.target.value)} aria-label="Rank band" title="Players by their current ranked rank">
+            <option value="">All ranks</option>
+            {BANDS.map((b, i) => <option key={b} value={i}>{b}{data?.yourBand === i ? ' (you)' : ''}</option>)}
+          </select>
+        )}
         <Seg value={side} options={[{ v: '', label: 'Both' }, { v: 'attack', label: 'Attack' }, { v: 'defense', label: 'Defense' }]} onChange={setSide} />
         <span className="small muted">{who === 'others' ? `${data?.players ?? 0} players you've met` : 'All your games, from Ubisoft'}{data?.lastError ? ` · sync error: ${data.lastError}` : ''}</span>
       </div>
@@ -215,15 +222,45 @@ function GlobalMetaView() {
   )
 }
 
+/** Ranked numbers that moved since the previous patch (appears once a newer patch's data arrives). */
+function PatchView() {
+  const [d] = useData(() => rs().patchChanges(), [])
+  type Row = NonNullable<typeof d>['rows'][number]
+  const change = (r: Row) => (r.deltaAfter ?? 0) - (r.deltaBefore ?? 0)
+  const { sort, H } = useSort<Row, 'change' | 'name' | 'side' | 'after' | 'ban'>('change', (r, k) =>
+    k === 'change' ? change(r) : k === 'name' ? r.name : k === 'side' ? r.side : k === 'after' ? r.deltaAfter : (r.banAfter ?? 0) - (r.banBefore ?? 0))
+  const sp = (x: number | null) => (x === null ? '–' : `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}%`)
+  if (!d) return null
+  return (
+    <div className="panel">
+      <h2>Patch changes <span className="sub">{d.from ? `${d.from} → ${d.to} · official ranked win delta and ban rate` : d.to}</span></h2>
+      {!d.from ? <div className="empty">Shows which operators got stronger or weaker once the next patch's data arrives (you're on {d.to}). Nothing to compare yet.</div>
+        : !d.rows.length ? <div className="empty">No ranked numbers changed between {d.from} and {d.to}.</div> : (
+          <table>
+            <thead><tr><H k="name" left>Operator</H><H k="side" left>Side</H><H k="change" title="Change in official ranked win delta">Δ win delta</H><H k="after">Now</H><th className="r">Before</th><H k="ban">Ban rate</H></tr></thead>
+            <tbody>{sort(d.rows).map((r) => (
+              <tr key={r.side + r.opKey}>
+                <td style={{ fontWeight: 600 }}>{r.name}</td><td><SideTag side={r.side} /></td>
+                <DeltaCell d={r.deltaBefore === null && r.deltaAfter === null ? null : change(r)} />
+                <td className="r num">{sp(r.deltaAfter)}</td><td className="r num faint">{sp(r.deltaBefore)}</td>
+                <td className="r num">{r.banBefore === null && r.banAfter === null ? '–' : `${pct(r.banBefore ?? 0)} → ${pct(r.banAfter ?? 0)}`}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+    </div>
+  )
+}
+
 export function MetaPage() {
-  const [source, setSource] = useState<Source | 'global'>('global')
+  const [source, setSource] = useState<Source | 'global' | 'patch'>('global')
   return (
     <>
       <div className="panel row">
         <h2 style={{ margin: 0 }}>Operator meta</h2>
-        <Seg value={source} options={[{ v: 'global', label: 'Global (all users)' }, { v: 'ubisoft', label: 'Players I\'ve met' }, { v: 'replays', label: 'My replays (map & site)' }]} onChange={setSource} />
+        <Seg value={source} options={[{ v: 'global', label: 'Global (all users)' }, { v: 'ubisoft', label: 'Players I\'ve met' }, { v: 'replays', label: 'My replays (map & site)' }, { v: 'patch', label: 'Patch changes' }]} onChange={setSource} />
       </div>
-      {source === 'global' ? <GlobalMetaView /> : source === 'ubisoft' ? (
+      {source === 'patch' ? <PatchView /> : source === 'global' ? <GlobalMetaView /> : source === 'ubisoft' ? (
         <>
           <p className="muted small" style={{ margin: 0 }}>Every match adds the full operator history of all 10 players in your lobby, straight from Ubisoft. Grows fast, but has no map or site detail.</p>
           <UbisoftOps who="others" />
