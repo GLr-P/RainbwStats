@@ -184,7 +184,7 @@ function GlobalMetaView() {
           {g?.sites.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <Seg value={side} options={[{ v: '', label: 'Both' }, { v: 'attack', label: 'Attack' }, { v: 'defense', label: 'Defense' }]} onChange={setSide} />
-        <button onClick={() => void refresh()} disabled={busy}>{busy ? 'Syncing…' : 'Refresh'}</button>
+        <button className="btn" onClick={() => void refresh()} disabled={busy}>{busy ? 'Syncing…' : 'Refresh'}</button>
         <span className="small muted">
           {g?.season} · {career ? `${g?.players ?? 0} players` : `${g?.rounds ?? 0} player-rounds`}
           {g?.generatedAt ? ` · updated ${new Date(g.generatedAt).toLocaleString()}` : ''}

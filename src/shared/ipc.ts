@@ -97,6 +97,8 @@ export interface Settings {
   datasetUrl: string
   /** Opt-in: share pseudonymous operator stats with the global crowd database. */
   shareCrowd: boolean
+  /** The one-time "help build the global meta?" card was answered. */
+  crowdPrompted: boolean
   crowdUrl: string
 }
 

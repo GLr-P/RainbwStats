@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ocrEnabled: false,
   datasetUrl: 'https://glr-p.github.io/RainbwStats/data/meta/latest.json',
   shareCrowd: false,
+  crowdPrompted: false,
   crowdUrl: 'https://rainbwstats-crowd.nanotechservices.workers.dev'
 }
 

@@ -6,7 +6,24 @@ import type { Side } from '../../../shared/types'
 import { OpChip, RankBadge, Meter, SideTag, Seg, pct, ratio, rs, useData } from '../lib'
 import { BansPanel } from '../Bans'
 
-export function LivePage({ live, settings, status }: { live: LiveState | null; settings: Settings; status: AppStatus | undefined }) {
+/** One-time opt-in card for the global database (sharing stays off unless you press Share). */
+function SharePrompt({ update }: { update: (p: Partial<Settings>) => Promise<void> }) {
+  return (
+    <div className="panel row" style={{ gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 260 }}>
+        <h2 style={{ margin: 0 }}>Help build the global meta?</h2>
+        <div className="small muted">
+          Share your lobbies' operator stats (ranked, this season) and your replay results with every RainbwStats user. No names are sent,
+          player ids are hashed, custom games are ignored. You get the global data either way. Change it any time in Settings.
+        </div>
+      </div>
+      <button className="btn primary" onClick={() => void update({ shareCrowd: true, crowdPrompted: true })}>Share</button>
+      <button className="btn" onClick={() => void update({ crowdPrompted: true })}>No thanks</button>
+    </div>
+  )
+}
+
+export function LivePage({ live, settings, status, update }: { live: LiveState | null; settings: Settings; status: AppStatus | undefined; update: (p: Partial<Settings>) => Promise<void> }) {
   const [preview, setPreview] = useState<LiveState | null>(null)
   if (!live) return null
   const inMatch = live.phase === 'match' || live.phase === 'loading' || (live.phase === 'ended' && live.matchId)
@@ -16,6 +33,7 @@ export function LivePage({ live, settings, status }: { live: LiveState | null; s
   return (
     <>
       {inMatch || preview ? <Header s={s} /> : <Waiting live={live} status={status} />}
+      {!inMatch && !settings.shareCrowd && !settings.crowdPrompted && <SharePrompt update={update} />}
       {!inMatch && <PreviewPicker onPreview={setPreview} active={!!preview} />}
       {(inMatch || preview) && (
         <>

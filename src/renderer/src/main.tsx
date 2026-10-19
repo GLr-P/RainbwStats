@@ -66,7 +66,7 @@ function App() {
             <button className="btn primary" onClick={() => void rs().installUpdate()}>Restart now</button>
           </div>
         )}
-        {!settings || !catalogReady ? null : page === 'live' ? <LivePage live={live} settings={settings} status={status} />
+        {!settings || !catalogReady ? null : page === 'live' ? <LivePage live={live} settings={settings} status={status} update={update} />
           : page === 'roster' ? <RosterPage settings={settings} update={update} />
           : page === 'maps' ? <MapsPage />
           : page === 'ops' ? <OperatorsPage />
