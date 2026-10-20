@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { AppStatus, LivePlayer, LiveState, Recommendation, Settings } from '../../../shared/ipc'
-import { allMaps, mapName } from '../../../shared/catalog'
+import { allMaps, mapName, operatorName } from '../../../shared/catalog'
 import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
 import { OpChip, RankBadge, Meter, SideTag, Seg, pct, ratio, rs, useData } from '../lib'
@@ -36,6 +36,8 @@ export function LivePage({ live, settings, status, update }: { live: LiveState |
       {inMatch || preview ? <Header s={s} /> : <Waiting live={live} status={status} />}
       {!inMatch && !settings.shareCrowd && !settings.crowdPrompted && <SharePrompt update={update} />}
       {!inMatch && <PreviewPicker onPreview={setPreview} active={!!preview} />}
+      {!inMatch && !preview && <MapVote />}
+      {s.phase === 'ended' && s.rounds.length > 0 && <Recap s={s} />}
       {(inMatch || preview) && (
         <>
           <div className="grid-2">
@@ -214,6 +216,59 @@ function Waiting({ live, status }: { live: LiveState; status: AppStatus | undefi
         </ul>
       )}
       <Simulator hasReplay={!!st?.matches} />
+    </div>
+  )
+}
+
+/** Map vote: which ranked maps you win most / least (your recorded rounds). */
+function MapVote() {
+  const [a] = useData(() => rs().mapAdvice(), [])
+  const known = (a?.maps ?? []).filter((m) => m.rounds >= 8)
+  if (known.length < 3) return null
+  const sp = (d: number) => `${d >= 0 ? '+' : '−'}${Math.abs(d * 100).toFixed(0)}%`
+  const Row = ({ label, maps, cls }: { label: string; maps: typeof known; cls: string }) => (
+    <div className="row" style={{ gap: 8 }}>
+      <span className="muted" style={{ width: 70 }}>{label}</span>
+      {maps.map((m) => <span key={m.mapKey} className="opchip" title={`${pct(m.winRate)} of ${m.rounds} rounds won (${m.matches} games)`}>{mapName(m.mapKey)} <span className={cls} style={{ marginLeft: 6 }}>{sp(m.delta)}</span></span>)}
+    </div>
+  )
+  return (
+    <div className="panel">
+      <h2>Map vote <span className="sub">your round win rate per ranked map vs your average ({pct(a!.avg)})</span></h2>
+      <Row label="Keep" maps={known.slice(0, 3)} cls="w" />
+      <div style={{ height: 6 }} />
+      <Row label="Ban" maps={known.slice(-3).reverse()} cls="l" />
+    </div>
+  )
+}
+
+/** After a match: how it went, at a glance. */
+function Recap({ s }: { s: LiveState }) {
+  const me = s.myTeam.find((p) => p.isMe)
+  const won = s.score[0] > s.score[1]
+  const bySide = (side: Side) => { const r = s.rounds.filter((x) => x.side === side); return { won: r.filter((x) => x.won).length, n: r.length } }
+  const atk = bySide('attack'), def = bySide('defense')
+  const ops = new Map<string, { won: number; n: number }>()
+  for (const r of s.rounds) if (r.myOp) { const o = ops.get(r.myOp) ?? { won: 0, n: 0 }; o.n++; o.won += +r.won; ops.set(r.myOp, o) }
+  const top = (team: LivePlayer[]) => team.slice().sort((x, y) => y.kills - x.kills)[0]
+  const mvp = top(s.myTeam), threat = top(s.enemyTeam)
+  return (
+    <div className="panel">
+      <h2>Match recap <span className="sub">{s.mapKey ? mapName(s.mapKey) : ''}</span></h2>
+      <div className="row" style={{ gap: 24, alignItems: 'baseline' }}>
+        <span className={won ? 'w' : 'l'} style={{ fontFamily: 'var(--head)', fontWeight: 700, fontSize: '1.6rem' }}>{won ? 'WIN' : s.score[0] === s.score[1] ? 'DRAW' : 'LOSS'} {s.score[0]}–{s.score[1]}</span>
+        {me && <span>You <b className="num">{me.kills}/{me.deaths}</b> <span className="muted small">K/D {ratio(me.kills, me.deaths)}</span></span>}
+        {atk.n > 0 && <span className="small"><SideTag side="attack" /> {atk.won}/{atk.n}</span>}
+        {def.n > 0 && <span className="small"><SideTag side="defense" /> {def.won}/{def.n}</span>}
+        {mvp && mvp.kills > 0 && <span className="small muted">Team top: <b>{mvp.name}</b> {mvp.kills} kills</span>}
+        {threat && threat.kills > 0 && <span className="small muted">Their top: <b>{threat.name}</b> {threat.kills} kills</span>}
+      </div>
+      {ops.size > 0 && (
+        <div className="row small" style={{ gap: 6, marginTop: 8 }}>
+          <span className="muted">Your operators:</span>
+          {[...ops].map(([id, o]) => <span key={id} className="opchip">{operatorName(id)} <span className="faint" style={{ marginLeft: 4 }}>{o.won}/{o.n} won</span></span>)}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,11 +1,11 @@
 // Query layer shared by IPC handlers and the live engine.
 import type { Db } from './db'
 import type { Dataset } from '../shared/data/dataset'
-import type { ApiOps, GlobalFilter, GlobalMeta, GuideOp, LivePlayer, MapBans, PatchChanges, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
+import type { ApiOps, GlobalFilter, GlobalMeta, GuideOp, LivePlayer, MapAdvice, MapBans, PatchChanges, MapGuide, MetaRow, OpStatRow, Recommendation, Settings } from '../shared/ipc'
 import { baselineFor, recommend, ROLE_PRIOR, type AggMap } from '../shared/recommend'
 import { allOperators, operatorById, operatorByKey, operatorName, sideOfOperator } from '../shared/catalog'
 import type { RoleTag } from '../shared/data/operators'
-import { KIND_FIT, mapStrongFor, proBansFor, seedSitesFor, siteKindFor, siteTiersFor } from '../shared/data/sitePicks'
+import { KIND_FIT, rankedPool, mapStrongFor, proBansFor, seedSitesFor, siteKindFor, siteTiersFor } from '../shared/data/sitePicks'
 import { meta, type MetaData } from '../shared/data/meta'
 import type { Agg, Side } from '../shared/types'
 import { bandOf, type CrowdMeta } from '../shared/crowd'
@@ -335,6 +335,19 @@ export function globalDelta(ctx: Ctx, side: Side): Record<string, number> | unde
   if (!n) return undefined
   const avg = rows.reduce((s, [, a]) => s + a.wins, 0) / n
   return Object.fromEntries(rows.map(([k, a]) => [k, (a.wins + avg * 500) / (a.rounds + 500) - avg]))
+}
+
+/** Map vote advice: your round win rate per ranked map vs your average (shrunk ~20 rounds). */
+export function mapAdvice(ctx: Ctx): MapAdvice {
+  const me = ctx.me()
+  const rows = me ? ctx.db.myMapRounds(me) : []
+  const pool = new Set(rankedPool())
+  const inPool = rows.filter((r) => !pool.size || pool.has(r.mapKey))
+  const total = inPool.reduce((n, r) => n + r.rounds, 0)
+  const avg = total ? inPool.reduce((n, r) => n + r.wins, 0) / total : 0.5
+  const maps = inPool.map((r) => ({ mapKey: r.mapKey, rounds: r.rounds, matches: r.matches, winRate: r.wins / r.rounds, delta: (r.wins + avg * 20) / (r.rounds + 20) - avg }))
+    .sort((a, b) => b.delta - a.delta)
+  return { maps, avg }
 }
 
 /** Suggested bans on a map for both sides (each team bans one attacker and one defender). */

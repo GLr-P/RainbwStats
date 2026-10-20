@@ -15,7 +15,7 @@ import { UbiClient, UbiError } from './ubi/client'
 import { LobbyService } from './ubi/lobby'
 import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
-import { apiOps, currentSeason, globalMeta, patchChanges, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
+import { apiOps, currentSeason, globalMeta, mapAdvice, patchChanges, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
 import { CrowdSync } from './crowd'
 import { startGep } from './gep'
 import { historyCsv, performance } from './performance'
@@ -202,6 +202,7 @@ app.whenReady().then(async () => {
     apiOps: async (f) => apiOps(ctx, f, opsync.lastError),
     performance: async () => performance(ctx, ubi.canAuth),
     patchChanges: async () => patchChanges(dataset.previousMeta),
+    mapAdvice: async () => mapAdvice(ctx),
     globalMeta: async (f) => globalMeta(ctx, f, { sharing: settings.get().shareCrowd, lastError: crowd.lastError, lastUpload: crowd.lastUpload }),
     refreshGlobal: () => crowdTick(true),
     mapGuide: async (mapKey, side) => mapGuide(ctx, mapKey, side),

@@ -103,3 +103,19 @@ describe('rank-banded meta of players you met', () => {
     expect(db.apiOpAggs({ season: 'Y11S3' }).size).toBe(2)
   })
 })
+
+describe('map vote advice', () => {
+  it('ranks ranked-pool maps by your round win rate, ignoring custom games', async () => {
+    const { mapAdvice } = await import('../src/main/services')
+    const db = openDb(':memory:')
+    const play = (id: string, map: string, type: number, wins: boolean[]) => wins.forEach((w, i) => db.saveRound({ ...rounds[0]!, matchId: id, round: i + 1, mapKey: map, matchType: type,
+      players: [{ ...rounds[0]!.players.find((p) => p.profileId === me)!, won: w }] }))
+    play('a', 'clubhouse', 2, [true, true, true, true, false])
+    play('b', 'bank', 2, [false, false, false, true])
+    play('c', 'plane', 4, [true, true, true]) // custom + not ranked: ignored
+    const a = mapAdvice({ db, settings: () => DEFAULT_SETTINGS, dataset: () => BUNDLED_DATASET, me: () => me })
+    expect(a.maps.map((m) => m.mapKey)).toEqual(['clubhouse', 'bank'])
+    expect(a.maps[0]!.delta).toBeGreaterThan(0)
+    expect(a.maps[1]!.delta).toBeLessThan(0)
+  })
+})

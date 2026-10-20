@@ -235,6 +235,9 @@ export interface PatchChanges {
   rows: { opKey: string; name: string; side: Side; deltaBefore: number | null; deltaAfter: number | null; banBefore: number | null; banAfter: number | null }[]
 }
 
+/** Map vote advice from your own rounds (ranked pool only). Δ = round win rate vs your average, small samples shrunk. */
+export interface MapAdvice { maps: { mapKey: string; rounds: number; matches: number; winRate: number; delta: number }[]; avg: number }
+
 export interface FileResult { ok: boolean; path?: string; error?: string }
 
 export interface AuthResult { ok: boolean; twoFactor?: boolean; error?: string }
@@ -282,6 +285,8 @@ export interface RsApi {
   loginWithUbisoft(): Promise<AuthResult>
   /** Ubisoft Career operator stats: yours ('me') or aggregated over players you've met ('others'). */
   apiOps(f: { who: 'me' | 'others'; season: string; playlist?: string; band?: number }): Promise<ApiOps>
+  /** Which ranked maps you win most / least (for the map vote). */
+  mapAdvice(): Promise<MapAdvice>
   /** What changed between the previous patch's data and this one. */
   patchChanges(): Promise<PatchChanges>
   /** Your performance: rank, session, match history, breakdowns. */
@@ -309,5 +314,5 @@ export interface RsApi {
 
 export const API_METHODS = [
   'status', 'getSettings', 'setSettings', 'getLive', 'preview', 'login', 'submitTwoFactor', 'logout',
-  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'openOcrDebug', 'exportData', 'importData', 'exportCsv', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'patchChanges', 'performance', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
+  'opStats', 'meta', 'sites', 'seasons', 'lookupPlayer', 'rescan', 'pickGameDir', 'openOcrDebug', 'exportData', 'importData', 'exportCsv', 'catalog', 'simulate', 'loginWithUbisoft', 'apiOps', 'mapAdvice', 'patchChanges', 'performance', 'globalMeta', 'refreshGlobal', 'mapGuide', 'simPeople', 'simulateMatch', 'stopSimulation', 'updateStatus', 'checkForUpdates', 'installUpdate'
 ] as const satisfies readonly Exclude<keyof RsApi, 'onLive' | 'onUpdate' | 'onSettings'>[]

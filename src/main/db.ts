@@ -294,6 +294,12 @@ export function openDb(path: string) {
           (SELECT p.side FROM round_players p WHERE p.match_id = r.match_id AND p.round = r.round AND p.team = 0 AND p.side IS NOT NULL LIMIT 1) side
         FROM rounds r ORDER BY r.match_id, r.round`).all().filter((x) => (x as { side: unknown }).side) as never
     },
+    /** Your rounds per map from real (non-custom) replays. */
+    myMapRounds(profileId: string): { mapKey: string; rounds: number; wins: number; matches: number }[] {
+      return db.prepare(`SELECT r.map_key mapKey, count(*) rounds, sum(rp.won) wins, count(DISTINCT r.match_id) matches
+        FROM rounds r JOIN round_players rp USING (match_id, round)
+        WHERE rp.profile_id = ? AND r.match_type NOT IN (3, 4) GROUP BY r.map_key`).all(profileId) as never
+    },
     /** Latest ranked rank id seen for a player (null = never fetched). */
     latestRank(profileId: string): number | null {
       return (db.prepare(`SELECT rank FROM rank_snapshots WHERE profile_id = ? AND board = 'ranked' ORDER BY fetched_at DESC LIMIT 1`).get(profileId) as { rank: number } | undefined)?.rank ?? null
