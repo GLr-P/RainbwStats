@@ -182,3 +182,17 @@ describe('side prediction self-check', () => {
     expect(r.correct / r.total).toBeGreaterThan(0.9)
   })
 })
+
+describe('ranked side rule', () => {
+  it('3 rounds per side, swap, overtime swaps every round, whatever the header or history says', async () => {
+    const { sideFor, RANKED_TYPE } = await import('../src/main/live/state')
+    const misleading = () => new Map([[2, { swaps: 9, n: 9 }], [3, { swaps: 9, n: 9 }]]) // "swaps every round" history
+    const seq = (first: 'attack' | 'defense', upTo: number) => {
+      const out: string[] = []
+      for (let r = 1; r <= upTo; r++) out.push(sideFor(RANKED_TYPE, out.length ? [first] : [first], r, 12, misleading)) // header says 12
+      return out
+    }
+    expect(seq('attack', 9)).toEqual(['attack', 'attack', 'attack', 'defense', 'defense', 'defense', 'attack', 'defense', 'attack'])
+    expect(seq('defense', 6)).toEqual(['defense', 'defense', 'defense', 'attack', 'attack', 'attack'])
+  })
+})

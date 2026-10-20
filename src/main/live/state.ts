@@ -67,6 +67,17 @@ export function nextSide(history: (Side | null)[], next: number, roundsPerMatch:
   return predictSide(first, next, roundsPerMatch)
 }
 
+/** Replay match type for Ranked. Ranked always plays 3 rounds per side, swaps, and goes to overtime at
+ *  3–3 with sides swapping every overtime round: no guessing needed. */
+export const RANKED_TYPE = 2
+export const RANKED_FORMAT = { roundsPerMatch: 6, overtimeRounds: 3 }
+
+/** Side for the next round: the fixed ranked rule for ranked, the adaptive guess for other playlists. */
+export function sideFor(type: number, history: (Side | null)[], next: number, roundsPerMatch: number, learned: () => Map<number, { swaps: number; n: number }>): Side {
+  if (type === RANKED_TYPE) return predictSide(history.find((x) => x) ?? 'attack', next, RANKED_FORMAT.roundsPerMatch)
+  return nextSide(history, next, roundsPerMatch, learned())
+}
+
 /** True when a team has clinched (regulation or overtime). */
 export function matchOver(score: [number, number], roundsPerMatch: number, overtimeRounds: number): boolean {
   const half = Math.floor(roundsPerMatch / 2)
@@ -120,8 +131,9 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
 
   const firstSide = summaries[0]?.side ?? 'attack'
   const nextRound = last.round + 1
-  const over = matchOver(score, o.roundsPerMatch, o.overtimeRounds)
-  const side = o.override?.side ?? nextSide(summaries.map((x) => x.side), nextRound, o.roundsPerMatch, learnSwaps(ctx.db.sideSequences(), last.matchType))
+  const fmt = last.matchType === RANKED_TYPE ? RANKED_FORMAT : { roundsPerMatch: o.roundsPerMatch, overtimeRounds: o.overtimeRounds }
+  const over = matchOver(score, fmt.roundsPerMatch, fmt.overtimeRounds)
+  const side = o.override?.side ?? sideFor(last.matchType, summaries.map((x) => x.side), nextRound, fmt.roundsPerMatch, () => learnSwaps(ctx.db.sideSequences(), last.matchType))
   const mapKey = o.override?.mapKey ?? last.mapKey
   const site = o.override?.site ?? null
   // Teammates (not me) with their picks so far: used to judge whether the team needs a hard breacher etc.
@@ -184,6 +196,8 @@ export function sidePredictionAccuracy(seqs: { matchId: string; type: number; ro
     m.sides[x.round - 1] = x.side
     byMatch.set(x.matchId, m)
   }
+  // Ranked is what matters: score ranked matches only when there are any.
+  if ([...byMatch.values()].some((m) => m.type === RANKED_TYPE)) for (const [id, m] of byMatch) if (m.type !== RANKED_TYPE) byMatch.delete(id)
   let correct = 0, total = 0
   for (const [id, m] of byMatch) {
     const learned = learnSwaps(seqs.filter((x) => x.matchId !== id), m.type)
@@ -192,7 +206,7 @@ export function sidePredictionAccuracy(seqs: { matchId: string; type: number; ro
       const history = m.sides.slice(0, r - 1).map((x) => x ?? null)
       if (!actual || !history[history.length - 1]) continue
       total++
-      if (nextSide(history, r, roundsPerMatch, learned) === actual) correct++
+      if (sideFor(m.type, history, r, roundsPerMatch, () => learned) === actual) correct++
     }
   }
   return { correct, total }
