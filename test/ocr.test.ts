@@ -41,3 +41,13 @@ describe('main menu frames', () => {
     expect(isMenu(['VILLA', 'ATTACK', 'ROUND 1', 'SELECT YOUR OPERATOR'])).toBe(false)
   })
 })
+
+describe('side from operator names (operator select)', () => {
+  it('uses your side\'s operator names when no ATTACK/DEFENSE label is read', async () => {
+    const { detect } = await import('../src/main/ocr/matcher')
+    expect(detect(['CLUBHOUSE', 'SMOKE', 'MUTE', 'JAGER', 'BANDIT', 'Select your operator']).side).toBe('defense')
+    expect(detect(['ASH', 'THERMITE', 'SLEDGE', 'HIBANA']).side).toBe('attack')
+    expect(detect(['BAN AN OPERATOR', 'ASH', 'THERMITE', 'SLEDGE']).side).toBeUndefined() // ban screens show the enemy
+    expect(detect(['ASH', 'SMOKE', 'MUTE', 'THERMITE']).side).toBeUndefined() // mixed: not confident
+  })
+})

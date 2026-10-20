@@ -1,5 +1,5 @@
 // Turns noisy OCR lines into {map, side, site} using a fixed vocabulary. Pure and unit-tested.
-import { allMaps } from '../../shared/catalog'
+import { allMaps, allOperators } from '../../shared/catalog'
 import type { Side } from '../../shared/types'
 
 export interface Detection { mapKey?: string; side?: Side; site?: string }
@@ -32,6 +32,9 @@ function bestMatch(line: string, vocab: string[]): { word: string; score: number
   return best
 }
 
+/** Operator display names (uppercased like Siege's UI), cached per call site. */
+const OP_NAMES = () => (['attack', 'defense'] as const).flatMap((side) => allOperators(side).map((o) => ({ name: norm(o.name), side })))
+
 const SIDE_WORDS: Record<string, Side> = { ATTACK: 'attack', ATTACKERS: 'attack', ATTACKING: 'attack', DEFENSE: 'defense', DEFENCE: 'defense', DEFENDERS: 'defense', DEFENDING: 'defense' }
 
 export function detect(lines: string[], sitesByMap: (mapKey: string) => string[] = () => []): Detection {
@@ -63,6 +66,20 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
     if (m && m.score >= 0.85) sides.add(SIDE_WORDS[m.word]!)
   }
   if (sides.size === 1) out.side = [...sides][0]
+  else if (sides.size === 0) {
+    // Operator select lists only your side's operators: their names give your side. Ban screens show
+    // the enemy's, so frames mentioning bans are skipped.
+    if (!L.some((l) => l.split(' ').some((w) => w === 'BAN' || w === 'BANS' || w === 'BANNED'))) {
+      const vote = { attack: 0, defense: 0 }
+      for (const l of L) {
+        if (words(l) > 2) continue
+        const hit = OP_NAMES().find((o) => similarity(l, o.name) >= 0.88)
+        if (hit) vote[hit.side]++
+      }
+      const total = vote.attack + vote.defense
+      if (total >= 3 && Math.max(vote.attack, vote.defense) / total >= 0.8) out.side = vote.attack > vote.defense ? 'attack' : 'defense'
+    }
+  }
 
   if (out.mapKey) {
     // Replay site names look like "2F Meeting Room, 2F Executive Office"; match either half.
