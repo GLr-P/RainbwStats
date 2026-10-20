@@ -100,3 +100,16 @@ describe('match simulation', () => {
     expect(engine.state.mapKey).toBe('plane')
   })
 })
+
+describe('learned side swaps', () => {
+  it('learns when sides swap from recorded matches and uses it for the next round', async () => {
+    const { learnSwaps, nextSide } = await import('../src/main/live/state')
+    // A format that swaps every 2 rounds (not the "half time" rule), seen in 3 ranked matches.
+    const seq = (id: string) => ['attack', 'attack', 'defense', 'defense', 'attack', 'attack'].map((side, i) => ({ matchId: id, type: 2, round: i + 1, side: side as 'attack' | 'defense' }))
+    const learned = learnSwaps([...seq('a'), ...seq('b'), ...seq('c'), ...seq('custom').map((x) => ({ ...x, type: 4, side: 'attack' as const }))])
+    expect(learned.get(3)).toEqual({ swaps: 3, n: 3 })
+    expect(nextSide('attack', 'attack', 3, 6, learned)).toBe('defense')
+    expect(nextSide('defense', 'attack', 5, 6, learned)).toBe('attack') // the half-time rule would say defense
+    expect(nextSide('attack', 'attack', 4, 6, new Map())).toBe('defense') // no history: format rule
+  })
+})

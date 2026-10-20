@@ -2,11 +2,12 @@
 import type { MapBans } from '../../shared/ipc'
 import { SideTag } from './lib'
 
-export function BansPanel({ bans, note }: { bans: MapBans; note?: string }) {
+/** `only`: show just the side you can ban (Siege X: each team bans one enemy operator per round). */
+export function BansPanel({ bans, note, only }: { bans: MapBans; note?: string; only?: 'attack' | 'defense' }) {
   return (
     <div className="panel">
       <h2>Suggested bans <span className="sub">{note ?? 'for this map · hover for why'}</span></h2>
-      {(['attack', 'defense'] as const).map((side) => (
+      {(only ? [only] : (['attack', 'defense'] as const)).map((side) => (
         <div className="row" key={side} style={{ gap: 8, marginBottom: 8 }}>
           <SideTag side={side} />
           {bans[side].length ? bans[side].map((b, i) => (

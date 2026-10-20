@@ -42,9 +42,9 @@ export function LivePage({ live, settings, status, update }: { live: LiveState |
               {p.recommendations && <Picks s={s} />}
               {p.siteBreakdown && s.siteRecs.length > 0 && <SiteBreakdown s={s} />}
             </div>
-            {(s.bans && s.rounds.length === 0) || (p.teams && inMatch) ? (
+            {(s.bans && s.phase !== 'ended') || (p.teams && inMatch) ? (
               <div className="row" style={{ alignItems: 'stretch', flexDirection: 'column', gap: 'var(--gap)' }}>
-                {s.bans && s.rounds.length === 0 && <BansPanel bans={s.bans} note="ban phase · ops you play rank lower" />}
+                {s.bans && s.phase !== 'ended' && <BansPanel bans={s.bans} only={s.side ? (s.side === 'attack' ? 'defense' : 'attack') : undefined} note={s.side ? `ban phase · you're ${s.side === 'attack' ? 'attacking: ban a defender' : 'defending: ban an attacker'}` : 'ban phase · ops you play rank lower'} />}
                 {p.teams && inMatch && <Teams s={s} />}
               </div>
             ) : null}

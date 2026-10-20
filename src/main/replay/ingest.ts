@@ -9,7 +9,7 @@ import { RECRUIT_ID } from '../../shared/data/operators'
 import type { RoundRecord } from '../../shared/types'
 
 export const parseFile = (path: string, headerOnly = false): ReplayRound =>
-  parseRound(readFileSync(path), { sideOf: sideOfOperator, sideOfName: (n) => operatorByKey(n.toLowerCase().replace(/[^a-z0-9]/g, ''))?.side ?? null, headerOnly })
+  parseRound(readFileSync(path), { sideOf: sideOfOperator, sideOfName: (n) => operatorByKey(n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ø/g, 'o').replace(/[^a-z0-9]/g, ''))?.side ?? null, headerOnly })
 
 /** Parses and stores one round file. Skips files already ingested at the same mtime. */
 export function ingestFile(db: Db, path: string, force = false): RoundRecord | null {

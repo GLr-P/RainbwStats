@@ -20,6 +20,29 @@ export function predictSide(firstSide: Side, next: number, roundsPerMatch: numbe
   return (next - half * 2) % 2 === 1 ? firstSide : flip(firstSide)
 }
 
+/** When sides swap, learned from your recorded matches: per round number, how often the side changed
+ *  from the previous round. Real (non-custom) matches are used when there are any. */
+export function learnSwaps(seqs: { matchId: string; type: number; round: number; side: Side }[]): Map<number, { swaps: number; n: number }> {
+  const real = seqs.filter((x) => x.type !== 3 && x.type !== 4)
+  const use = real.length ? real : seqs
+  const out = new Map<number, { swaps: number; n: number }>()
+  for (let i = 1; i < use.length; i++) {
+    const a = use[i - 1]!, b = use[i]!
+    if (a.matchId !== b.matchId || b.round !== a.round + 1) continue
+    const c = out.get(b.round) ?? { swaps: 0, n: 0 }
+    c.n++; c.swaps += +(a.side !== b.side)
+    out.set(b.round, c)
+  }
+  return out
+}
+
+/** Next round's side: from your own matches' swap pattern when there is enough of it, else the format rule. */
+export function nextSide(prev: Side | null, first: Side, next: number, roundsPerMatch: number, learned: Map<number, { swaps: number; n: number }>): Side {
+  const l = learned.get(next)
+  if (prev && l && l.n >= 3) return l.swaps / l.n >= 0.5 ? flip(prev) : prev
+  return predictSide(first, next, roundsPerMatch)
+}
+
 /** True when a team has clinched (regulation or overtime). */
 export function matchOver(score: [number, number], roundsPerMatch: number, overtimeRounds: number): boolean {
   const half = Math.floor(roundsPerMatch / 2)
@@ -74,7 +97,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
   const firstSide = summaries[0]?.side ?? 'attack'
   const nextRound = last.round + 1
   const over = matchOver(score, o.roundsPerMatch, o.overtimeRounds)
-  const side = o.override?.side ?? predictSide(firstSide, nextRound, o.roundsPerMatch)
+  const side = o.override?.side ?? nextSide(summaries[summaries.length - 1]?.side ?? null, firstSide, nextRound, o.roundsPerMatch, learnSwaps(ctx.db.sideSequences()))
   const mapKey = o.override?.mapKey ?? last.mapKey
   const site = o.override?.site ?? null
   // Teammates (not me) with their picks so far: used to judge whether the team needs a hard breacher etc.
@@ -93,7 +116,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
     otherSide: otherSidePicks(ctx, mapKey, side, teammates),
     siteRecs: siteRecsFor(ctx, mapKey, side, 3, teammates), // always shown (the current site is highlighted)
     rounds: summaries,
-    bans: null, // ban phase is over once a round is recorded
+    bans: over ? null : banSuggestions(ctx, mapKey), // Siege X: a ban phase every round
     source: o.override ? 'ocr' : 'replay',
     lobbyError: o.lobbyError ?? null,
     updatedAt: new Date().toISOString()

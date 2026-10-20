@@ -33,10 +33,10 @@ export function Overlay() {
       </div>
       <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {!inMatch || !s ? <div className="small muted">Waiting for a match. Picks, bans and the enemy team show up here.</div> : <>
-          {s.bans && s.rounds.length === 0 && (
+          {s.bans && s.phase !== 'ended' && (
             <div>
               <div className="ov-h">Ban</div>
-              {(['attack', 'defense'] as const).map((side) => (
+              {(s.side ? [s.side === 'attack' ? 'defense' as const : 'attack' as const] : (['attack', 'defense'] as const)).map((side) => (
                 <div key={side} className="row small" style={{ gap: 6 }}><SideTag side={side} /><span style={name}>{s.bans![side].slice(0, 2).map((b) => b.name).join(' · ') || '–'}</span></div>
               ))}
             </div>
