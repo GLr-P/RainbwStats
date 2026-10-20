@@ -154,8 +154,8 @@ Legend: [ ] todo · [x] done. Each phase ends with: tests green → PLAN updated
 
 ### Phase 10 — Overwolf live game data (round 1 / sides, like R6 Tracker)
 - [ ] Owner: Overwolf developer account + request GEP for Rainbow Six Siege (game id 10826) for RainbwStats via DevRel
-- [ ] Switch runtime to @overwolf/ow-electron (check its Electron/Node version supports node:sqlite), add `"overwolf": { "packages": ["gep"] }`
-- [ ] GEP adapter: match_info.map_id / match_start → map before round 1; game_info.phase (operator_select/loading); match.round; roster_XX (player, team Blue/Orange, operator) → teams + sides from operators; feed LiveEngine as an override source (replaces OCR when available)
+- [ ] Switch runtime to @overwolf/ow-electron (latest stable 42.11.4 = Electron 42 / Node 24: node:sqlite OK; package "electron" → "@overwolf/ow-electron", builder → "@overwolf/ow-electron-builder"), add `"overwolf": { "packages": ["gep"] }`
+- [x] GEP adapter (src/main/gep, dormant on plain Electron, 3 tests from the documented payloads): match_info.map_id / match_start → map before round 1; game_info.phase (operator_select/loading); match.round; roster_XX (player, team Blue/Orange, operator) → teams + sides from operators; feed LiveEngine as an override source (replaces OCR when available)
 - [ ] Keep replay + OCR paths as fallback (GEP unavailable in custom games / when Overwolf is off)
 
 ### Next (proposed order)

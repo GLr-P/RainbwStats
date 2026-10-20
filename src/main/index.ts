@@ -17,6 +17,7 @@ import { LiveEngine } from './live/engine'
 import { buildLive } from './live/state'
 import { apiOps, currentSeason, globalMeta, patchChanges, mainsOf, mapGuide, metaRows, opStats, sitesFor, type Ctx } from './services'
 import { CrowdSync } from './crowd'
+import { startGep } from './gep'
 import { historyCsv, performance } from './performance'
 import { buildSyntheticMatch, type SimPlayer } from './live/simulate'
 import { SEED_SITES } from '../shared/data/maps'
@@ -128,6 +129,8 @@ app.whenReady().then(async () => {
   syncOverlay(settings.get(), saveOverlayBounds)
   engine.start()
   if (settings.get().ocrEnabled) ocr.start()
+  // Overwolf live game data (only on the ow-electron runtime): map + side from operator select, before round 1.
+  startGep((g, newMatch) => { if (g.mapKey || g.side) engine.setDetected({ mapKey: g.mapKey ?? undefined, side: g.side ?? undefined }, newMatch) }, (m) => console.log(m))
   if (ubi.canAuth) void ubi.warm().catch(() => undefined) // first live lookup shouldn't pay for login
   if (!isSmoke) { syncMine(); setInterval(syncMine, 3600_000) }
   if (!isSmoke && !demo) { setTimeout(() => void crowdTick(), 20_000); setInterval(() => void crowdTick(), 3600_000) }
