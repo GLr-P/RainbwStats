@@ -5,6 +5,7 @@ import { pickerMaps } from '../../../shared/data/sitePicks'
 import type { Side } from '../../../shared/types'
 import { OpChip, RankBadge, Meter, SideTag, Seg, pct, ratio, rs, useData } from '../lib'
 import { BansPanel } from '../Bans'
+import { rankName } from '../../../shared/ranks'
 
 /** One-time opt-in card for the global database (sharing stays off unless you press Share). */
 function SharePrompt({ update }: { update: (p: Partial<Settings>) => Promise<void> }) {
@@ -160,7 +161,10 @@ function TeamTable({ title, players }: { title: string; players: LivePlayer[] })
             return (
               <tr key={p.profileId} className={p.isMe ? 'me' : ''}>
                 <td style={{ fontWeight: 600 }}>{p.name}</td>
-                <td title={c?.ranked ? `Peak: ${c.ranked.maxRankPoints} RP` : undefined}>{c?.ranked ? <RankBadge rank={c.ranked.rank} rp={c.ranked.rankPoints} /> : <span className="faint">{c?.loaded === false ? '–' : '…'}</span>}</td>
+                <td title={[c?.ranked ? `Peak this season: ${c.ranked.maxRankPoints} RP` : '', p.pastBest ? `Best of last 3 seasons: ${rankName(p.pastBest.rank)} (${p.pastBest.season})` : ''].filter(Boolean).join(' · ') || undefined}>
+                  {c?.ranked ? <RankBadge rank={c.ranked.rank} rp={c.ranked.rankPoints} /> : <span className="faint">{c?.loaded === false ? '–' : '…'}</span>}
+                  {p.pastBest && <div className="small faint">was {rankName(p.pastBest.rank)}</div>}
+                </td>
                 <td className="r num">{se ? ratio(se.kills, se.deaths) : '–'}</td>
                 <td className="r num">{games ? pct(se!.wins / games) : '–'}</td>
                 <td className="r num">{c?.level ?? '–'}</td>

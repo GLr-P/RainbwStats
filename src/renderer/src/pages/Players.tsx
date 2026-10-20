@@ -40,6 +40,14 @@ export function PlayersPage() {
           </table>
         </div>
       )}
+      {res && res.pastRanks.length > 0 && (
+        <div className="panel">
+          <h2>Past seasons <span className="sub">rank at the end of each season (Ubisoft)</span></h2>
+          <div className="row" style={{ gap: 6 }}>
+            {res.pastRanks.map((r) => <span key={r.season} className="opchip">{r.season} <span style={{ marginLeft: 6 }}><RankBadge rank={r.rank} /></span></span>)}
+          </div>
+        </div>
+      )}
       {res && res.history.length > 0 && (
         <div className="panel">
           <h2>Rank history <span className="sub">builds up every time this player is looked up or seen in your lobby</span></h2>

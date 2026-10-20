@@ -34,6 +34,8 @@ export interface LivePlayer {
   ops: { round: number; operatorId: string; side: Side | null; won: boolean }[]
   /** Most played operators (Ubisoft stats, current season, else lifetime). */
   mains: { opKey: string; name: string; side: Side; rounds: number; wins: number }[]
+  /** Best end-of-season rank in the last 3 past seasons (null = unknown / unranked). */
+  pastBest: { season: string; rank: number } | null
   kills: number
   deaths: number
 }
@@ -244,7 +246,7 @@ export interface UpdateStatus {
   error?: string
 }
 
-export interface PlayerLookup { card: PlayerCard | null; history: { seasonId: number; board: string; rank: number; rankPoints: number; maxRank: number; maxRankPoints: number; wins: number; losses: number; kills: number; deaths: number }[]; encounters: number; error?: string }
+export interface PlayerLookup { card: PlayerCard | null; pastRanks: { season: string; rank: number }[]; history: { seasonId: number; board: string; rank: number; rankPoints: number; maxRank: number; maxRankPoints: number; wins: number; losses: number; kills: number; deaths: number }[]; encounters: number; error?: string }
 
 export interface RsApi {
   status(): Promise<AppStatus>

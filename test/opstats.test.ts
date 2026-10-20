@@ -61,7 +61,11 @@ describe('Ubisoft Career operator stats', () => {
     expect(statsCalls()).toBe(1 + seasonsBefore + pastRanks) // all fresh / immutable: no new requests
     const before = statsCalls()
     await sync.syncPlayers([ME, P2, 'name:bot'])
-    expect(statsCalls() - before).toBe(2) // lifetime + current season, each one batched request (ME already fresh)
+    // lifetime + current season (one batched request each), + last 3 past seasons' ranks for P2 (ME already has them)
+    expect(statsCalls() - before).toBe(2 + 3)
+    const again = statsCalls()
+    await sync.syncPlayers([ME, P2])
+    expect(statsCalls()).toBe(again) // all cached: past ranks are asked once per player and season, ever
     expect(db.apiOpAggs({ profileId: P2, season: 'all' }).get('thermite')).toMatchObject({ rounds: 80, wins: 50 })
     expect(db.apiPlayerCount('all', ME)).toBe(1)
   })

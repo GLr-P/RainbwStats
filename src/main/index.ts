@@ -283,10 +283,11 @@ app.whenReady().then(async () => {
       if (!id && ubi.canAuth) {
         try { id = (await ubi.profileByName(name))?.profileId ?? null } catch (e) { error = e instanceof UbiError ? e.message : String(e) }
       }
-      if (!id) return { card: null, history: [], encounters: 0, error: error ?? 'Player not found' }
-      const { cards, error: e2 } = await lobby.cards([id], { [id]: db.playerName(id) ?? name })
+      if (!id) return { card: null, pastRanks: [], history: [], encounters: 0, error: error ?? 'Player not found' }
+      const [{ cards, error: e2 }] = await Promise.all([lobby.cards([id], { [id]: db.playerName(id) ?? name }), opsync.syncPlayerHistory(id)])
       const me = ctx.me()
-      return { card: cards[0] ?? null, history: db.rankHistory(id), encounters: me && me !== id ? db.encounters(id, me) : 0, error: e2 }
+      const pastRanks = db.seasonRanks(id).filter((r) => r.rank > 0 && r.rank <= 40).sort((a, b) => seasonCodeToId(b.season) - seasonCodeToId(a.season))
+      return { card: cards[0] ?? null, pastRanks, history: db.rankHistory(id), encounters: me && me !== id ? db.encounters(id, me) : 0, error: e2 }
     },
     simulate: () => engine.simulate(),
     rescan: async () => { await engine.rescan(); return status() },

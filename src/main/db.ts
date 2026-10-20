@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS crowd_sent_players (profile_id TEXT NOT NULL, season 
 CREATE TABLE IF NOT EXISTS crowd_sent_matches (match_id TEXT PRIMARY KEY);
 -- Rank at the end of past seasons (Ubisoft Career "RankingRankSeasonal"); immutable once fetched.
 CREATE TABLE IF NOT EXISTS season_ranks (profile_id TEXT NOT NULL, season TEXT NOT NULL, rank INTEGER NOT NULL, PRIMARY KEY (profile_id, season));
+-- Which (player, past season) pairs were already asked (unranked seasons return nothing; don't ask again).
+CREATE TABLE IF NOT EXISTS season_ranks_fetched (profile_id TEXT NOT NULL, season TEXT NOT NULL, PRIMARY KEY (profile_id, season));
 `
 
 export interface AggFilter {
@@ -273,6 +275,15 @@ export function openDb(path: string) {
     saveSeasonRanks(rows: { profileId: string; season: string; rank: number }[]): void {
       const ins = db.prepare(`INSERT OR REPLACE INTO season_ranks VALUES (?, ?, ?)`)
       tx(() => { for (const r of rows) ins.run(r.profileId, r.season, r.rank) })
+    },
+    /** Of these players, the ones whose rank for a past season hasn't been asked yet. */
+    seasonRankTodo(ids: string[], season: string): string[] {
+      const done = new Set((db.prepare(`SELECT profile_id p FROM season_ranks_fetched WHERE season = ?`).all(season) as { p: string }[]).map((r) => r.p))
+      return ids.filter((id) => !done.has(id))
+    },
+    markSeasonRanksFetched(ids: string[], season: string): void {
+      const ins = db.prepare(`INSERT OR IGNORE INTO season_ranks_fetched VALUES (?, ?)`)
+      tx(() => { for (const id of ids) ins.run(id, season) })
     },
     seasonRanks(profileId: string): { season: string; rank: number }[] {
       return db.prepare(`SELECT season, rank FROM season_ranks WHERE profile_id = ?`).all(profileId) as never

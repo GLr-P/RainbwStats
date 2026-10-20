@@ -62,16 +62,33 @@ export class OpStatsSync {
       for (const s of past.sort((a, b) => seasonCodeToId(b) - seasonCodeToId(a))) {
         if (!this.db.apiFetchedAt(me, s)) await this.fetch([me], s) // immutable: fetch once
       }
-      // Past-season ranks, once per season (they never change).
-      const done = new Set(this.db.getJson<string[]>(`seasonRanks:${me}`) ?? [])
-      try {
-        for (const s of past.filter((x) => !done.has(x))) {
-          this.db.saveSeasonRanks(await this.ubi.seasonRanks([me], { code: s, calendarId: SEASON_CALENDAR[s]! }))
-          done.add(s)
-          this.db.setJson(`seasonRanks:${me}`, [...done])
-        }
-      } catch { /* optional extra: never fail the operator sync over it; retried next hour */ }
+      await this.pastRanks([me], past)
     })
+  }
+
+  /** Past seasons' end ranks for players, each (player, season) asked once, batched per season.
+   *  Optional extra: failures never fail the surrounding sync (retried next time). */
+  private async pastRanks(ids: string[], seasons: string[]): Promise<void> {
+    try {
+      for (const s of seasons) {
+        const cal = SEASON_CALENDAR[s]
+        const todo = cal ? this.db.seasonRankTodo(ids, s) : []
+        if (!todo.length) continue
+        this.db.saveSeasonRanks(await this.ubi.seasonRanks(todo, { code: s, calendarId: cal! }))
+        this.db.markSeasonRanksFetched(todo, s)
+      }
+    } catch { /* retried next time */ }
+  }
+
+  /** Past seasons before the current one, newest first. */
+  private pastSeasons(): string[] {
+    const current = this.currentSeason()
+    return Object.keys(SEASON_CALENDAR).filter((x) => seasonCodeToId(x) < seasonCodeToId(current)).sort((a, b) => seasonCodeToId(b) - seasonCodeToId(a))
+  }
+
+  /** One player's whole ranked history (Players page lookup). */
+  syncPlayerHistory(id: string): Promise<boolean> {
+    return this.guarded(() => this.pastRanks([id], this.pastSeasons()))
   }
 
   /** Lobby players: lifetime + current season, batched, cached 12 h. */
@@ -81,6 +98,7 @@ export class OpStatsSync {
       const real = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id))
       await this.fetch(real.filter((id) => this.stale(id, 'all', 12 * HOUR)), 'all')
       await this.fetch(real.filter((id) => this.stale(id, current, 12 * HOUR)), current)
+      await this.pastRanks(real, this.pastSeasons().slice(0, 3)) // last 3 seasons: once per player, ever
     })
   }
 }
