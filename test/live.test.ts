@@ -170,3 +170,15 @@ describe('side during a match', () => {
     expect(engine.state.side).toBe(predicted)
   })
 })
+
+describe('side prediction self-check', () => {
+  it('scores predictions on recorded matches (alternating and half-time formats)', async () => {
+    const { sidePredictionAccuracy } = await import('../src/main/live/state')
+    const m = (id: string, sides: string[], type = 2) => sides.map((side, i) => ({ matchId: id, type, round: i + 1, side: side as 'attack' | 'defense' }))
+    const half = ['attack', 'attack', 'attack', 'defense', 'defense', 'defense']
+    expect(sidePredictionAccuracy([...m('a', half), ...m('b', half), ...m('c', half), ...m('d', half)])).toEqual({ correct: 20, total: 20 })
+    const alt = ['attack', 'defense', 'attack', 'defense', 'attack', 'defense']
+    const r = sidePredictionAccuracy([...m('a', alt, 12), ...m('b', alt, 12), ...m('c', alt, 12), ...m('d', alt, 12)])
+    expect(r.correct / r.total).toBeGreaterThan(0.9)
+  })
+})

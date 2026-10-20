@@ -227,6 +227,7 @@ export function MePage() {
       <div className="panel row">
         <h2 style={{ margin: 0 }}>{p.me ? p.me.name : 'Me'}</h2>
         <span className="small muted">Your rank, sessions and games. Ranked games are picked up from your rank even without a replay.</span>
+        {p.sideAccuracy.total >= 5 && <span className="badge" title="How often the app's next-round side guess matched your recorded matches (each round predicted from the rounds before it)">Side prediction {pct(p.sideAccuracy.correct / p.sideAccuracy.total)} of {p.sideAccuracy.total} rounds</span>}
         <div className="spacer" />
         <button className="btn" onClick={() => void rs().exportCsv()} disabled={!p.matches.length}>Export CSV</button>
         <button className="btn" onClick={reload}>Refresh</button>

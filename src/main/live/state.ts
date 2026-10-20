@@ -171,3 +171,27 @@ function otherSidePicks(ctx: Ctx, mapKey: string, side: Side, teammates: Teammat
   const other: Side = side === 'attack' ? 'defense' : 'attack'
   return { side: other, recs: recsFor(ctx, { mapKey, side: other, site: null, topN: 3, teammates }) }
 }
+
+/** How often nextSide would have been right on your recorded matches (each match predicted using only
+ *  its earlier rounds and your *other* matches). Custom games are left out. */
+export function sidePredictionAccuracy(seqs: { matchId: string; type: number; round: number; side: Side }[], roundsPerMatch = 6): { correct: number; total: number } {
+  const byMatch = new Map<string, { type: number; sides: (Side | null)[] }>()
+  for (const x of seqs) {
+    if (x.type === 3 || x.type === 4) continue
+    const m = byMatch.get(x.matchId) ?? { type: x.type, sides: [] }
+    m.sides[x.round - 1] = x.side
+    byMatch.set(x.matchId, m)
+  }
+  let correct = 0, total = 0
+  for (const [id, m] of byMatch) {
+    const learned = learnSwaps(seqs.filter((x) => x.matchId !== id), m.type)
+    for (let r = 2; r <= m.sides.length; r++) {
+      const actual = m.sides[r - 1]
+      const history = m.sides.slice(0, r - 1).map((x) => x ?? null)
+      if (!actual || !history[history.length - 1]) continue
+      total++
+      if (nextSide(history, r, roundsPerMatch, learned) === actual) correct++
+    }
+  }
+  return { correct, total }
+}

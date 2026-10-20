@@ -196,6 +196,8 @@ export interface Performance {
   season: string
   rank: { rank: number; rankPoints: number; maxRank: number; maxRankPoints: number; wins: number; losses: number; abandons: number; kills: number; deaths: number; at: string } | null
   rpHistory: { at: string; rp: number; rank: number }[]
+  /** How often the app's next-round side guess matched your recorded matches. */
+  sideAccuracy: { correct: number; total: number }
   /** Rank at the end of past seasons, newest first. */
   pastRanks: { season: string; rank: number }[]
   session: SessionStats | null
