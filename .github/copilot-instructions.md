@@ -21,3 +21,4 @@ Read these first; they are the source of truth:
 - Verify past-season ranks (Me tab) against the owner's real ranks; then extend to lobby players and the Players page (`UbiClient.seasonRanks`, `season_ranks` table).
 - v0.6.3 fixed: reworked maps showing as "Unknown map" (learned from site room names: `mapForSite`, `learnMap`) and side voting when operator ids are unknown (header display-name fallback). Confirm with the owner's next matches.
 - Ban-phase OCR needs real frames (Settings → OCR debug keeps the last 40).
+- Phase 10 (Overwolf live data for round 1): code ready on branch `overwolf-runtime` (ow-electron runtime + `src/main/gep`). Waiting for the owner's Overwolf dev account: DevRel must enable R6 GEP for "RainbwStats" by "GLr-P", and OW_CLI_EMAIL / OW_CLI_API_KEY / OW_BUILD_KEY must be set as env vars (never commit them). Then merge, `npm install`, `node node_modules/electron/install.js`, `npm run dist`, release.
