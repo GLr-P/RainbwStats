@@ -2,7 +2,7 @@
 
 Read these first; they are the source of truth:
 - `CLAUDE.md`: layout, commands, gotchas, conventions (applies to any assistant)
-- `PLAN.md`: phases, the verification log (one row per release) and the open items
+- `PLAN.md`: phases and the open items; `docs/VERIFICATION-LOG.md` has one row per release
 - `messages.md` (local only, gitignored): the running conversation with the owner. Newest first; "Needs you" lists what's waiting on them. Add an entry there after each release.
 
 ## How work is done here

@@ -1,7 +1,8 @@
 # RainbwStats: notes for Claude
 
-Read PLAN.md first. It holds phases, DoD checklists, the risk register and the verification log. Tick
-boxes and add a log row when a phase finishes.
+Before starting, read PLAN.md §3 "Next" and §7 "User checks", plus the "Needs you" section at the top of `messages.md`.
+Read PLAN.md's other sections (research, architecture, phase checklists, risks) only when the task touches them.
+When a phase or release finishes, tick its boxes and add a row to [docs/VERIFICATION-LOG.md](docs/VERIFICATION-LOG.md).
 
 ## Layout
 - `src/main/`: Electron main process (all I/O): `db.ts`, `replay/` (rec parser + watcher), `ubi/` (Ubisoft API), `live/`, `ocr/`, `meta/`

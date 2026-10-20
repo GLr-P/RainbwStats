@@ -26,7 +26,7 @@ There is no single perfect source, so each one covers a different blind spot:
    Expert corrections go in `research/manual/overrides.json` (recorded as overrides, never as research).
    It prints a coverage report: sites with too little evidence fall back to the curated tiers in `sitePicks.ts`
    (site names are matched by room names, so small naming differences are tolerated).
-6. **Sanity check** with real data: `npx tsx` the variety/audit scripts (see PLAN.md log) on a copy of a real profile,
+6. **Sanity check** with real data: `npx tsx` the variety/audit scripts (see docs/VERIFICATION-LOG.md) on a copy of a real profile,
    then `npm run check`. Spot-check a few sites you know well.
 7. Bump the dataset `version`, commit, push (Pages serves the new JSON), release if code changed.
 
