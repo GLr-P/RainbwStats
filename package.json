@@ -4,7 +4,9 @@
   "version": "0.6.6",
   "description": "Ad-free Rainbow Six Siege companion: live lobby stats, operator analytics and roster-aware recommendations.",
   "license": "MIT",
-  "author": "GLr-P",
+  "author": {
+    "name": "GLr-P"
+  },
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -14,19 +16,22 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "check": "npm run typecheck && npm run test",
-    "smoke": "electron-vite build && node scripts/run.mjs electron . --smoke",
-    "dist": "electron-vite build && electron-builder --win --publish never",
+    "smoke": "electron-vite build && node scripts/run.mjs ow-electron . --smoke",
+    "dist": "electron-vite build && ow-electron-builder --win --publish never",
     "release": "electron-vite build && electron-builder --win --publish always",
     "export-dataset": "tsx scripts/export-dataset.ts",
-    "shots": "electron-vite build && node scripts/run.mjs electron . --smoke --demo=test/fixtures/rounds-sample.json --shots=site/img",
-    "selftest": "electron-vite build && node scripts/run.mjs electron . --smoke --selftest-weblogin"
+    "shots": "electron-vite build && node scripts/run.mjs ow-electron . --smoke --demo=test/fixtures/rounds-sample.json --shots=site/img",
+    "selftest": "electron-vite build && node scripts/run.mjs ow-electron . --smoke --selftest-weblogin"
   },
   "devDependencies": {
+    "@overwolf/ow-electron": "^42.11.4",
+    "@overwolf/ow-electron-builder": "^26.9.3",
+    "@overwolf/ow-electron-packages-types": "^1.1.13",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "electron": "^44.9.0",
+    "electron": "npm:@overwolf/ow-electron@^42.11.4",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
     "tsx": "^4.23.15",
@@ -91,5 +96,10 @@
     ]
   },
   "repository": "github:GLr-P/RainbwStats",
-  "homepage": "https://glr-p.github.io/RainbwStats/"
+  "homepage": "https://glr-p.github.io/RainbwStats/",
+  "overwolf": {
+    "packages": [
+      "gep"
+    ]
+  }
 }
