@@ -51,3 +51,13 @@ describe('side from operator names (operator select)', () => {
     expect(detect(['ASH', 'SMOKE', 'MUTE', 'THERMITE']).side).toBeUndefined() // mixed: not confident
   })
 })
+
+describe('screens that name another side', () => {
+  it('never take a side from round results or ban screens', async () => {
+    const { detect } = await import('../src/main/ocr/matcher')
+    expect(detect(['ROUND 3', 'DEFENDERS', 'WIN']).side).toBeUndefined()
+    expect(detect(['ATTACKERS ELIMINATED', 'ATTACKERS']).side).toBeUndefined()
+    expect(detect(['BAN', 'ATTACKERS']).side).toBeUndefined()
+    expect(detect(['CLUBHOUSE', 'DEFENSE']).side).toBe('defense') // operator select / loading still works
+  })
+})

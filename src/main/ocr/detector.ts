@@ -24,6 +24,9 @@ export class OcrDetector {
   /** Engine-provided gate: true when the game runs and round info is missing. */
   shouldRun: () => boolean = () => true
   sitesByMap: (mapKey: string) => string[] = () => []
+  /** Minimum ms between reads (the engine slows it down during a match). */
+  minInterval: () => number = () => 0
+  private lastRun = 0
   /** Called when a frame shows Siege's main menu. */
   onMenu: () => void = () => undefined
   debugDir: string | null = null
@@ -42,8 +45,9 @@ export class OcrDetector {
   }
 
   private async tick(): Promise<void> {
-    if (this.busy || !this.shouldRun()) return
+    if (this.busy || !this.shouldRun() || Date.now() - this.lastRun < this.minInterval()) return
     this.busy = true
+    this.lastRun = Date.now()
     try {
       const d = screen.getPrimaryDisplay()
       const width = Math.min(1600, d.size.width)

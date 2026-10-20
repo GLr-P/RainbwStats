@@ -142,3 +142,17 @@ describe('next match after one that never looked finished', () => {
     expect(engine.state).toMatchObject({ mapKey: 'bank', side: 'defense' })
   })
 })
+
+describe('side during a match', () => {
+  it('comes from the recorded rounds, not from screen reading', async () => {
+    const db = openDb(':memory:')
+    for (const r of rounds.slice(0, 3)) db.saveRound(r)
+    const engine = new LiveEngine(ctxFor(db), { cards: async () => ({ cards: [] }) } as unknown as LobbyService, () => null)
+    ;(engine as unknown as { gameRunning: boolean }).gameRunning = true
+    await (engine as unknown as { showMatch(id: string, live: boolean): Promise<void> }).showMatch(rounds[0]!.matchId, true)
+    const predicted = engine.state.side
+    ;(engine as unknown as { lastRoundAt: number }).lastRoundAt = Date.now()
+    engine.setDetected({ side: predicted === 'attack' ? 'defense' : 'attack', site: null }, false)
+    expect(engine.state.side).toBe(predicted)
+  })
+})

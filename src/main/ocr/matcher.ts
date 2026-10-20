@@ -59,8 +59,11 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
   }
 
   // Side: standalone label only; a frame showing both ATTACK and DEFENSE labels is ambiguous.
+  // Round results ("ATTACKERS WIN", "DEFENDERS ELIMINATED") and ban screens name *other* sides: no side from them.
+  const NOT_MINE = new Set(['WIN', 'WINS', 'WON', 'LOST', 'LOSE', 'ELIMINATED', 'VICTORY', 'DEFEAT', 'BAN', 'BANS', 'BANNED', 'MVP'])
+  const resultScreen = L.some((l) => l.split(' ').some((w) => NOT_MINE.has(w)))
   const sides = new Set<Side>()
-  for (const l of L) {
+  for (const l of resultScreen ? [] : L) {
     if (words(l) > 2) continue
     const m = bestMatch(l, Object.keys(SIDE_WORDS))
     if (m && m.score >= 0.85) sides.add(SIDE_WORDS[m.word]!)

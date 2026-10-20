@@ -51,6 +51,9 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
   get state(): LiveState { return this.current }
   get watching(): boolean { return this.watcher !== null }
   /** OCR gate: only look at the screen while the game runs and round-1 info is missing. */
+  /** During a match screen reading only adds the site and watches for the main menu: read less often. */
+  get inMatch(): boolean { return this.current.phase === 'match' }
+
   get needsRoundInfo(): boolean {
     // Between a round ending (new replay file clears the override) and the next operator-select
     // screen being read. Idle during gameplay once the side is known.
@@ -168,7 +171,9 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     const stale = this.now() - this.lastRoundAt > 90_000
     if (this.current.phase === 'match' && (this.menuSeen || (otherMap && stale))) { this.current = { ...this.current, phase: 'ended' }; newMatch = true }
     const p = this.current.phase
-    const d = p === 'match' ? { side: found.side, site: found.site } : found
+    // During a match the side comes from the recorded rounds + your learned swap pattern; screen reading
+    // only adds the site there (its side reads were often result/ban screens naming another side).
+    const d = p === 'match' ? { site: found.site } : found
     if (p === 'match') newMatch = false
     if (newMatch || (d.mapKey && (p === 'ended' || p === 'game' || p === 'idle'))) { this.matchId = null; this.cards.clear(); this.override = undefined }
     // Side/site without a map only count during a match (menus also show ATTACK/DEFENSE labels).
