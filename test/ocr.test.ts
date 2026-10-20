@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { detect, similarity } from '../src/main/ocr/matcher'
 
 describe('ocr matcher', () => {
@@ -39,6 +42,20 @@ describe('main menu frames', () => {
     const { isMenu } = await import('../src/main/ocr/detector')
     expect(isMenu(['PLAY', 'OPERATORS', 'BATTLEPASS', 'LOCKER', 'CAREER', 'ESPORTS', 'RANKED', 'BROWSE PLAYLISTS'])).toBe(true)
     expect(isMenu(['VILLA', 'ATTACK', 'ROUND 1', 'SELECT YOUR OPERATOR'])).toBe(false)
+  })
+})
+
+describe('OCR debug frame retention', () => {
+  it('keeps at most 40 frames when OCR errors before it writes sidecar text', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rainbwstats-ocr-test-'))
+    try {
+      for (let i = 0; i < 81; i++) writeFileSync(join(dir, `frame-${String(i).padStart(13, '0')}.png`), '')
+      const { trimDebugFrames } = await import('../src/main/ocr/detector')
+      trimDebugFrames(dir)
+      expect(readdirSync(dir)).toHaveLength(80)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

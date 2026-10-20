@@ -14,6 +14,12 @@ export function isMenu(lines: unknown): boolean {
   return text.includes('BROWSE PLAYLISTS') || ['OPERATORS', 'BATTLEPASS', 'LOCKER', 'CAREER'].filter((w) => text.includes(w)).length >= 3
 }
 
+/** Keep debug output bounded even when OCR itself fails before a text sidecar can be written. */
+export function trimDebugFrames(dir: string): void {
+  const frames = readdirSync(dir).filter((f) => /^frame-\d+\.(png|txt)$/.test(f)).sort()
+  for (const f of frames.slice(0, Math.max(0, frames.length - 80))) rmSync(join(dir, f), { force: true })
+}
+
 export class OcrDetector {
   private timer: NodeJS.Timeout | null = null
   private worker = new OcrWorker()
@@ -84,7 +90,10 @@ export class OcrDetector {
         if (found.mapKey) this.lastMap = found.mapKey
         this.onDetect(found, newMatch)
       }
-    } catch { /* capture can fail (secure desktop, exclusive fullscreen): retry next tick */ } finally {
+    } catch {
+      // A failed OCR run has no text sidecar, so it would otherwise bypass keepDebug's 40-frame cap.
+      if (this.debugDir) trimDebugFrames(this.debugDir)
+    } finally {
       this.busy = false
     }
   }
@@ -92,8 +101,7 @@ export class OcrDetector {
   /** Debug mode: next to each frame, what was read and detected; only the newest 40 frames are kept. */
   private keepDebug(dir: string, stamp: number, lines: unknown, found: Detection): void {
     writeFileSync(join(dir, `frame-${stamp}.txt`), `${JSON.stringify(found)}\n\n${JSON.stringify(lines, null, 1)}`)
-    const frames = readdirSync(dir).filter((f) => /^frame-\d+\.(png|txt)$/.test(f)).sort()
-    for (const f of frames.slice(0, Math.max(0, frames.length - 80))) rmSync(join(dir, f), { force: true })
+    trimDebugFrames(dir)
   }
 
   /** Forget the last map so the next detection starts a new match. */
