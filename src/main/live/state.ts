@@ -29,9 +29,11 @@ export function predictSide(firstSide: Side, next: number, roundsPerMatch: numbe
 
 /** When sides swap, learned from your recorded matches: per round number, how often the side changed
  *  from the previous round. Real (non-custom) matches are used when there are any. */
-export function learnSwaps(seqs: { matchId: string; type: number; round: number; side: Side }[]): Map<number, { swaps: number; n: number }> {
+export function learnSwaps(seqs: { matchId: string; type: number; round: number; side: Side }[], type?: number): Map<number, { swaps: number; n: number }> {
+  // Same match type first (playlists can use different formats), then any real match, then anything.
+  const same = type === undefined ? [] : seqs.filter((x) => x.type === type)
   const real = seqs.filter((x) => x.type !== 3 && x.type !== 4)
-  const use = real.length ? real : seqs
+  const use = same.length ? same : real.length ? real : seqs
   const out = new Map<number, { swaps: number; n: number }>()
   for (let i = 1; i < use.length; i++) {
     const a = use[i - 1]!, b = use[i]!
@@ -43,10 +45,25 @@ export function learnSwaps(seqs: { matchId: string; type: number; round: number;
   return out
 }
 
-/** Next round's side: from your own matches' swap pattern when there is enough of it, else the format rule. */
-export function nextSide(prev: Side | null, first: Side, next: number, roundsPerMatch: number, learned: Map<number, { swaps: number; n: number }>): Side {
+/** Next round's side. Evidence, strongest first: this match's own swaps so far (a format that swaps
+ *  every round shows it by round 2), your past matches of the same type, then the format rule. */
+export function nextSide(history: (Side | null)[], next: number, roundsPerMatch: number, learned: Map<number, { swaps: number; n: number }>): Side {
+  const first = history.find((x) => x) ?? 'attack'
+  const prev = history[history.length - 1] ?? null
+  if (!prev) return predictSide(first, next, roundsPerMatch)
+  // This match vs. the format rule: if it already broke the rule, the rule is wrong for this match.
+  let broke = false, allSwapped = history.length >= 2
+  for (let i = 1; i < history.length; i++) {
+    const a = history[i - 1], b = history[i]
+    if (!a || !b) { allSwapped = false; continue }
+    const ruleSwap = predictSide(first, i + 1, roundsPerMatch) !== predictSide(first, i, roundsPerMatch)
+    if ((a !== b) !== ruleSwap) broke = true
+    if (a === b) allSwapped = false
+  }
+  if (broke && allSwapped) return flip(prev) // swaps every round
   const l = learned.get(next)
-  if (prev && l && l.n >= 3) return l.swaps / l.n >= 0.5 ? flip(prev) : prev
+  if (l && l.n >= 3) return l.swaps / l.n >= 0.5 ? flip(prev) : prev
+  if (broke) return flip(prev) // rule already wrong once and no history: alternating is the likelier format
   return predictSide(first, next, roundsPerMatch)
 }
 
@@ -104,7 +121,7 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
   const firstSide = summaries[0]?.side ?? 'attack'
   const nextRound = last.round + 1
   const over = matchOver(score, o.roundsPerMatch, o.overtimeRounds)
-  const side = o.override?.side ?? nextSide(summaries[summaries.length - 1]?.side ?? null, firstSide, nextRound, o.roundsPerMatch, learnSwaps(ctx.db.sideSequences()))
+  const side = o.override?.side ?? nextSide(summaries.map((x) => x.side), nextRound, o.roundsPerMatch, learnSwaps(ctx.db.sideSequences(), last.matchType))
   const mapKey = o.override?.mapKey ?? last.mapKey
   const site = o.override?.site ?? null
   // Teammates (not me) with their picks so far: used to judge whether the team needs a hard breacher etc.

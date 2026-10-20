@@ -108,9 +108,23 @@ describe('learned side swaps', () => {
     const seq = (id: string) => ['attack', 'attack', 'defense', 'defense', 'attack', 'attack'].map((side, i) => ({ matchId: id, type: 2, round: i + 1, side: side as 'attack' | 'defense' }))
     const learned = learnSwaps([...seq('a'), ...seq('b'), ...seq('c'), ...seq('custom').map((x) => ({ ...x, type: 4, side: 'attack' as const }))])
     expect(learned.get(3)).toEqual({ swaps: 3, n: 3 })
-    expect(nextSide('attack', 'attack', 3, 6, learned)).toBe('defense')
-    expect(nextSide('defense', 'attack', 5, 6, learned)).toBe('attack') // the half-time rule would say defense
-    expect(nextSide('attack', 'attack', 4, 6, new Map())).toBe('defense') // no history: format rule
+    expect(nextSide(['attack', 'attack'], 3, 6, learned)).toBe('defense')
+    expect(nextSide(['attack', 'attack', 'defense', 'defense'], 5, 6, learned)).toBe('attack') // the half-time rule would say defense
+    expect(nextSide(['attack', 'attack', 'attack'], 4, 6, new Map())).toBe('defense') // no history: format rule
+  })
+  it('notices a match that swaps every round, from the match itself', async () => {
+    const { nextSide } = await import('../src/main/live/state')
+    expect(nextSide(['attack'], 2, 6, new Map())).toBe('attack') // rule: same side until round 4
+    expect(nextSide(['attack', 'defense'], 3, 6, new Map())).toBe('attack') // swapped after round 1 → alternating
+    expect(nextSide(['attack', 'defense', 'attack'], 4, 6, new Map())).toBe('defense')
+    expect(nextSide(['defense', 'defense', 'defense', 'attack', 'attack'], 6, 6, new Map())).toBe('attack') // normal half-time match
+  })
+  it('learns per match type', async () => {
+    const { learnSwaps } = await import('../src/main/live/state')
+    const m = (id: string, type: number, sides: string[]) => sides.map((side, i) => ({ matchId: id, type, round: i + 1, side: side as 'attack' | 'defense' }))
+    const seqs = [...m('r1', 2, ['attack', 'attack', 'defense']), ...m('q1', 12, ['attack', 'defense', 'attack'])]
+    expect(learnSwaps(seqs, 12).get(2)).toEqual({ swaps: 1, n: 1 })
+    expect(learnSwaps(seqs, 2).get(2)).toEqual({ swaps: 0, n: 1 })
   })
 })
 
