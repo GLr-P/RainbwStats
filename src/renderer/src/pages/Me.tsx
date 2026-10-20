@@ -204,6 +204,7 @@ function Breakdowns({ p }: { p: Performance }) {
           </table>
         )}
       </div>
+      <Mates p={p} />
       <div className="panel">
         <h2>Your maps <span className="sub">round win rate from replays</span></h2>
         {!p.maps.length ? <div className="empty">Record matches with Match Replay on to see your maps.</div> : (
@@ -216,6 +217,28 @@ function Breakdowns({ p }: { p: Performance }) {
         )}
       </div>
     </>
+  )
+}
+
+/** Who you win with: teammates from your recorded matches (≥2 together). */
+function Mates({ p }: { p: Performance }) {
+  const all = p.matches.filter((m) => m.source !== 'rank' && m.kind !== 'Custom')
+  const avg = all.length ? all.filter((m) => m.result === 'win').length / all.length : 0.5
+  type M = Performance['mates'][number]
+  const delta = (m: M) => (m.wins + avg * 5) / (m.matches + 5) - avg
+  const { sort, H } = useSort<M, 'delta' | 'name' | 'wr' | 'games'>('delta', (m, k) => (k === 'delta' ? delta(m) : k === 'name' ? m.name : k === 'wr' ? m.wins / m.matches : m.matches))
+  if (!p.mates.length) return null
+  return (
+    <div className="panel">
+      <h2>Played with <span className="sub">match win rate with each teammate vs your average ({pct(avg)}), recorded games</span></h2>
+      <table>
+        <thead><tr><H k="name" left>Teammate</H><H k="delta">Δ win</H><H k="wr">Win %</H><H k="games">Games</H></tr></thead>
+        <tbody>{sort(p.mates).slice(0, 12).map((m) => {
+          const d = delta(m)
+          return <tr key={m.profileId}><td style={{ fontWeight: 600 }}>{m.name}</td><td className={`r num ${d >= 0 ? 'w' : 'l'}`}>{signedPct(d)}</td><td className="r num">{pct(m.wins / m.matches)}</td><td className="r num">{m.matches}</td></tr>
+        })}</tbody>
+      </table>
+    </div>
   )
 }
 

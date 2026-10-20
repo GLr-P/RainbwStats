@@ -207,6 +207,10 @@ export interface Performance {
   ops: { opKey: string; name: string; side: Side; rounds: number; wins: number }[]
   /** From replays (non-custom when available). */
   maps: { mapKey: string; matches: number; wins: number; rounds: number; roundWins: number }[]
+  /** Teammates you played at least 2 recorded (non-custom) matches with. */
+  mates: { profileId: string; name: string; matches: number; wins: number }[]
+  /** Results of your latest games in a row, newest first (for the streak notice). */
+  streak: { kind: 'win' | 'loss'; count: number; rp: number | null } | null
   loggedIn: boolean
 }
 

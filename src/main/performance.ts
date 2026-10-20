@@ -106,10 +106,11 @@ export function sessionOf(matches: MatchRow[], now: number): SessionStats | null
 export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Performance {
   const season = currentSeason(ctx)
   const me = ctx.me()
-  const empty: Performance = { me: null, season, rank: null, rpHistory: [], pastRanks: [], sideAccuracy: { correct: 0, total: 0 }, session: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], loggedIn }
+  const empty: Performance = { me: null, season, rank: null, rpHistory: [], pastRanks: [], sideAccuracy: { correct: 0, total: 0 }, session: null, mates: [], streak: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], loggedIn }
   if (!me) return empty
   const snaps = ctx.db.rankSnapshots(me, 'ranked', seasonCodeToId(season))
-  const replays = ctx.db.recentMatches(60).map((m) => replayMatch(ctx.db.roundsOfMatch(m.matchId), me)).filter((m): m is MatchRow => !!m)
+  const recorded = ctx.db.recentMatches(60).map((m) => ctx.db.roundsOfMatch(m.matchId))
+  const replays = recorded.map((rs) => replayMatch(rs, me)).filter((m): m is MatchRow => !!m)
   const matches = mergeHistory(replays, snaps)
   const last = snaps[snaps.length - 1]
   const ops = [...ctx.db.apiOpAggs({ profileId: me, season })].flatMap(([key, a]) => {
@@ -127,6 +128,7 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
     maps.set(m.mapKey!, a)
   }
   return {
+    mates: matesOf(recorded, me), streak: streakOf(matches),
     me: { profileId: me, name: ctx.db.playerName(me) ?? 'You' }, season,
     rank: last ? { rank: last.rank, rankPoints: last.rankPoints, maxRank: last.maxRank, maxRankPoints: last.maxRankPoints, wins: last.wins, losses: last.losses, abandons: last.abandons, kills: last.kills, deaths: last.deaths, at: last.fetchedAt } : null,
     rpHistory: changes(snaps).map((s) => ({ at: s.fetchedAt, rp: s.rankPoints, rank: s.rank })),
@@ -134,6 +136,41 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
     pastRanks: ctx.db.seasonRanks(me).filter((r) => r.season !== season && r.rank > 0 && r.rank <= 40).sort((a, b) => seasonCodeToId(b.season) - seasonCodeToId(a.season)),
     session: sessionOf(matches, now), matches, sides, ops, maps: [...maps.values()], loggedIn
   }
+}
+
+/** Teammates across recorded real matches (≥2 together), with how those matches went. */
+export function matesOf(matches: RoundRecord[][], me: string): Performance['mates'] {
+  const out = new Map<string, Performance['mates'][number]>()
+  for (const rs of matches) {
+    const first = rs[0]
+    if (!first || first.matchType === 3 || first.matchType === 4) continue
+    const mine = (r: RoundRecord) => r.players.find((p) => p.profileId === me) ?? r.players.find((p) => p.profileId === r.recordingProfileId)
+    const t = mine(first)?.teamIndex
+    if (t === undefined) continue
+    const won = rs.filter((r) => mine(r)?.won).length > rs.length / 2
+    for (const p of first.players) {
+      if (p.teamIndex !== t || p.profileId === me || p.profileId === first.recordingProfileId || p.profileId.startsWith('name:')) continue
+      const a = out.get(p.profileId) ?? { profileId: p.profileId, name: p.username, matches: 0, wins: 0 }
+      a.matches++; a.wins += +won; a.name = p.username
+      out.set(p.profileId, a)
+    }
+  }
+  return [...out.values()].filter((m) => m.matches >= 2)
+}
+
+/** Current run of wins or losses (≥3), newest first, with the RP it moved when known. */
+export function streakOf(matches: MatchRow[]): Performance['streak'] {
+  const games = matches.filter((m) => !m.games && (m.result === 'win' || m.result === 'loss' || m.result === 'abandon'))
+  const first = games[0]
+  if (!first) return null
+  const kind = first.result === 'win' ? 'win' : 'loss'
+  let count = 0, rp = 0, rpKnown = false
+  for (const m of games) {
+    if ((m.result === 'win' ? 'win' : 'loss') !== kind) break
+    count++
+    if (m.rpDelta !== null) { rp += m.rpDelta; rpKnown = true }
+  }
+  return count >= 3 ? { kind, count, rp: rpKnown ? rp : null } : null
 }
 
 /** Match history as CSV (spreadsheet-friendly). */

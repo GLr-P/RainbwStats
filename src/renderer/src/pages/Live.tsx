@@ -36,6 +36,7 @@ export function LivePage({ live, settings, status, update }: { live: LiveState |
       {inMatch || preview ? <Header s={s} /> : <Waiting live={live} status={status} />}
       {!inMatch && !settings.shareCrowd && !settings.crowdPrompted && <SharePrompt update={update} />}
       {!inMatch && <PreviewPicker onPreview={setPreview} active={!!preview} />}
+      {!inMatch && !preview && <Streak />}
       {!inMatch && !preview && <MapVote />}
       {s.phase === 'ended' && s.rounds.length > 0 && <Recap s={s} />}
       {(inMatch || preview) && (
@@ -216,6 +217,20 @@ function Waiting({ live, status }: { live: LiveState; status: AppStatus | undefi
         </ul>
       )}
       <Simulator hasReplay={!!st?.matches} />
+    </div>
+  )
+}
+
+/** A run of 3+ wins or losses, so you notice tilt (or a hot streak) before queueing again. */
+function Streak() {
+  const [p] = useData(() => rs().performance(), [])
+  const st = p?.streak
+  if (!st) return null
+  const rp = st.rp !== null ? ` (${st.rp > 0 ? '+' : '−'}${Math.abs(st.rp)} RP)` : ''
+  return (
+    <div className="panel small" style={{ borderLeft: `3px solid ${st.kind === 'win' ? 'var(--good)' : 'var(--bad)'}` }}>
+      {st.kind === 'win' ? <><b className="w">{st.count} wins in a row</b>{rp}. Keep the same roster going.</>
+        : <><b className="l">{st.count} losses in a row</b>{rp}. A short break or a different map in the vote often helps.</>}
     </div>
   )
 }

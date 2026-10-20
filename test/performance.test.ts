@@ -119,3 +119,21 @@ describe('map vote advice', () => {
     expect(a.maps[1]!.delta).toBeLessThan(0)
   })
 })
+
+describe('teammates and streaks', () => {
+  it('counts matches and wins with each teammate (≥2 together, custom games ignored)', async () => {
+    const { matesOf } = await import('../src/main/performance')
+    const ranked = (id: string, type = 2) => rounds.map((r) => ({ ...r, matchId: id, matchType: type }))
+    const mates = matesOf([ranked('a'), ranked('b'), ranked('c', 4)], me)
+    const myTeam = rounds[0]!.players.find((p) => p.profileId === me)!.teamIndex
+    const expected = rounds[0]!.players.filter((p) => p.teamIndex === myTeam && p.profileId !== me && !p.profileId.startsWith('name:')).length
+    expect(mates).toHaveLength(expected)
+    for (const m of mates) expect(m).toMatchObject({ matches: 2, wins: 0 }) // the sample match is a 2–4 loss
+  })
+  it('reports runs of 3+ wins or losses with the RP moved', async () => {
+    const { streakOf } = await import('../src/main/performance')
+    const g = (result: MatchRow['result'], rpDelta: number | null): MatchRow => ({ ...replayMatch(rounds, me)!, result, rpDelta })
+    expect(streakOf([g('loss', -20), g('loss', -22), g('abandon', -30), g('win', 25)])).toEqual({ kind: 'loss', count: 3, rp: -72 })
+    expect(streakOf([g('win', null), g('win', null), g('loss', -20)])).toBeNull()
+  })
+})
