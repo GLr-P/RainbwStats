@@ -18,6 +18,8 @@ export interface BanInput {
   crowdDelta?: Record<string, number>
   /** Operators you'd play on this side (banning them costs you a pick). */
   yours: string[]
+  /** Known enemy players' mains on this side: op key → the enemy who plays it most (Ubisoft stats). */
+  enemy?: Record<string, { player: string; rounds: number; wins: number }>
 }
 export interface BanSuggestion { opKey: string; name: string; side: Side; score: number; reasons: string[] }
 
@@ -38,6 +40,12 @@ export function suggestBans(inp: BanInput, top = 3): BanSuggestion[] {
     if (inp.strong.includes(op.key) && pro < 0.25) parts.push({ v: 1.5, why: 'Strong on this map' })
     const c = inp.crowdDelta?.[op.key]
     if (c !== undefined) parts.push({ v: 50 * c, why: `RainbwStats players ${signed(c)}` })
+    const e = inp.enemy?.[op.key]
+    if (e && e.rounds >= 20) {
+      // An enemy's main: more weight the more they've played it and the more they win on it.
+      const wr = e.wins / e.rounds
+      parts.push({ v: Math.min(3, e.rounds / 150) * (1 + Math.max(0, (wr - 0.5) * 10)), why: `${e.player} mains it: ${e.rounds} rds, ${pct(wr)} WR` })
+    }
     if (inp.yours.includes(op.key)) parts.push({ v: -4, why: 'You play it (costs you a pick)' })
     const score = parts.reduce((n, p) => n + p.v, 0)
     const reasons = parts.filter((p) => p.v > 0.3 || p.v < 0).sort((a, b) => Math.abs(b.v) - Math.abs(a.v)).map((p) => p.why)

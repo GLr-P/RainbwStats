@@ -32,3 +32,14 @@ describe('ban suggestions', () => {
     }
   })
 })
+
+describe('enemy mains in ban suggestions', () => {
+  it('pushes a strong enemy main to the top, with the reason', () => {
+    const r = suggestBans({ ...base, candidates: ops, proBan: { mira: 0.39 }, enemy: { rook: { player: 'Enemy1', rounds: 450, wins: 270 } } })
+    expect(r[0]!.opKey).toBe('rook')
+    expect(r[0]!.reasons[0]).toBe('Enemy1 mains it: 450 rds, 60% WR')
+    // A few casual rounds don't count.
+    const casual = suggestBans({ ...base, candidates: ops, proBan: { mira: 0.39 }, enemy: { rook: { player: 'E', rounds: 10, wins: 9 } } })
+    expect(casual.map((b) => b.opKey)).toEqual(['mira'])
+  })
+})

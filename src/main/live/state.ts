@@ -140,7 +140,8 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
     otherSide: otherSidePicks(ctx, mapKey, side, teammates),
     siteRecs: siteRecsFor(ctx, mapKey, side, 3, teammates), // always shown (the current site is highlighted)
     rounds: summaries,
-    bans: over ? null : banSuggestions(ctx, mapKey), // Siege X: a ban phase every round
+    // Siege X: a ban phase every round. Once the lobby is known, the enemy's best mains count too.
+    bans: over ? null : banSuggestions(ctx, mapKey, 3, players.filter((p) => !p.mine).map((p) => ({ profileId: p.profileId, name: p.name }))),
     source: o.override ? 'ocr' : 'replay',
     lobbyError: o.lobbyError ?? null,
     updatedAt: new Date().toISOString()

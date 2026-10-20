@@ -329,9 +329,18 @@ export function globalDelta(ctx: Ctx, side: Side): Record<string, number> | unde
 }
 
 /** Suggested bans on a map for both sides (each team bans one attacker and one defender). */
-export function banSuggestions(ctx: Ctx, mapKey: string, top = 3): MapBans {
+export function banSuggestions(ctx: Ctx, mapKey: string, top = 3, enemies: { profileId: string; name: string }[] = []): MapBans {
   const m = meta()
+  // Each enemy's mains (this season, else lifetime); per operator keep the enemy who plays it most.
+  const enemyMains: Record<Side, Record<string, { player: string; rounds: number; wins: number }>> = { attack: {}, defense: {} }
+  for (const e of enemies) {
+    for (const x of mainsOf(ctx, e.profileId, 8)) {
+      const cur = enemyMains[x.side][x.opKey]
+      if (!cur || x.rounds > cur.rounds) enemyMains[x.side][x.opKey] = { player: e.name, rounds: x.rounds, wins: x.wins }
+    }
+  }
   const forSide = (side: Side) => suggestBans({
+    enemy: enemyMains[side],
     side, candidates: allOperators(side).map((o) => ({ key: o.key, name: o.name })),
     winDelta: m.ranked.winDelta[side], rankedBan: m.ranked.bans[side], proBan: proBansFor(mapKey), strong: mapStrongFor(mapKey, side),
     crowdDelta: globalDelta(ctx, side),
