@@ -165,7 +165,15 @@ export function teamCoverFor(ctx: Ctx, side: Side, teammates: Teammate[]): Parti
   return Object.fromEntries(roles.map((r) => [r, 1 - lack[r]]))
 }
 
-export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: string | null; teammates?: Teammate[]; banned?: string[]; topN?: number; anyOperator?: boolean }): Recommendation[] {
+/** How much more likely than an unknown lobby the enemy is to bring each role (only when enemies are known). */
+export function enemyThreatFor(ctx: Ctx, mySide: Side, enemies: Teammate[]): Partial<Record<RoleTag, number>> {
+  if (!enemies.length) return {}
+  const theirs: Side = mySide === 'attack' ? 'defense' : 'attack'
+  const known = teamCoverFor(ctx, theirs, enemies), usual = teamCoverFor(ctx, theirs, [])
+  return Object.fromEntries(Object.entries(known).map(([r, p]) => [r, Math.max(0, (p ?? 0) - (usual[r as RoleTag] ?? 0)) / Math.max(0.05, 1 - (usual[r as RoleTag] ?? 0))]))
+}
+
+export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: string | null; teammates?: Teammate[]; enemies?: Teammate[]; banned?: string[]; topN?: number; anyOperator?: boolean }): Recommendation[] {
   const s = ctx.settings()
   const me = ctx.me()
   const mineF = (extra: object) => (me ? ctx.db.opAggs({ profileId: me, side: q.side, ...extra }) : new Map())
@@ -203,6 +211,7 @@ export function recsFor(ctx: Ctx, q: { mapKey: string | null; side: Side; site: 
   return recommend({
     specialists, rankedDelta, proBans,
     teamCover: teamCoverFor(ctx, q.side, q.teammates ?? []),
+    enemyThreat: enemyThreatFor(ctx, q.side, q.enemies ?? []),
     crowdSeason: crowdSeason.map, crowdSeasonPlayers: crowdSeason.players,
     side: q.side, mapKey: q.mapKey, site: q.site, roster: q.anyOperator ? [] : effectiveRoster(ctx, q.side), banned: q.banned,
     mine: {

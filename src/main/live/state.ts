@@ -126,7 +126,8 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
   const site = o.override?.site ?? null
   // Teammates (not me) with their picks so far: used to judge whether the team needs a hard breacher etc.
   const teammates = players.filter((p) => p.mine && !p.isMe).map((p) => ({ profileId: p.profileId, ops: p.ops }))
-  const recs = recsFor(ctx, { mapKey, side, site, teammates })
+  const enemies = players.filter((p) => !p.mine).map((p) => ({ profileId: p.profileId, ops: p.ops }))
+  const recs = recsFor(ctx, { mapKey, side, site, teammates, enemies })
 
   return {
     phase: o.phase ?? (over ? 'ended' : 'match'),

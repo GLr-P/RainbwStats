@@ -90,3 +90,23 @@ describe('site unknown: expected fit over the map', () => {
     expect(r.at(-1)!.name).toBe('Clash')
   })
 })
+
+describe('counters from the enemy lobby', () => {
+  it('values utility clear when the enemy mains anti-breach, and nothing changes without a known lobby', async () => {
+    const { openDb } = await import('../src/main/db')
+    const { DEFAULT_SETTINGS } = await import('../src/main/settings')
+    const { BUNDLED_DATASET } = await import('../src/shared/data/dataset')
+    const { enemyThreatFor, recsFor } = await import('../src/main/services')
+    const db = openDb(':memory:')
+    const mains = (id: string, ops: string[]) => db.saveApiOpStats(id, ['all'], ops.map((opKey) => ({ season: 'all', playlist: 'ranked', opKey, rounds: 300, wins: 160 })), '2026-10-20T00:00:00Z')
+    mains('e1', ['kaid']); mains('e2', ['mute']); mains('e3', ['bandit'])
+    const ctx = { db, settings: () => DEFAULT_SETTINGS, dataset: () => BUNDLED_DATASET, me: () => null }
+    const enemies = ['e1', 'e2', 'e3'].map((profileId) => ({ profileId, ops: [] }))
+    expect(enemyThreatFor(ctx, 'attack', enemies).ah).toBeGreaterThan(0.5)
+    expect(enemyThreatFor(ctx, 'attack', [])).toEqual({})
+    const thatcher = (en: typeof enemies) => recsFor(ctx, { mapKey: 'bank', side: 'attack', site: null, topN: 60, anyOperator: true, enemies: en }).find((r) => r.name === 'Thatcher')!
+    expect(thatcher(enemies).reasons.join(' ')).toMatch(/Counters their anti-breach/)
+    expect(thatcher(enemies).score).toBeGreaterThanOrEqual(thatcher([]).score)
+    expect(thatcher([]).reasons.join(' ')).not.toMatch(/Counters/)
+  })
+})

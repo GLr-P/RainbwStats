@@ -44,6 +44,8 @@ export interface RecInput {
   specialists?: { S?: string[]; A?: string[]; map?: string[]; B?: string[]; kind?: string; /** per-site tiers, used when the site is not known yet */ mix?: { S: string[]; A: string[]; B: string[] }[]; /** how much evidence backs the site tiers (0–1) */ confidence?: number }
   /** Probability (0..1) that teammates already cover a role this round; missing = unknown. */
   teamCover?: Partial<Record<RoleTag, number>>
+  /** How much more likely than usual the enemy brings each role (0–1), from the known enemy lobby. */
+  enemyThreat?: Partial<Record<RoleTag, number>>
   /** Official ranked win delta per operator (Ubisoft, Platinum+, aggregated per bomb site). */
   rankedDelta?: Map<string, number>
   /** Share of pro games on this map where the operator was banned. */
@@ -53,6 +55,12 @@ export interface RecInput {
 /** The role a team really needs one of, per side. */
 export const ESSENTIAL: Record<Side, RoleTag> = { attack: 'hb', defense: 'ah' }
 /** Useful roles that deserve a smaller "team lacks it" bonus. */
+/** Answers to what the enemy brings (kept to clear-cut ones). */
+const COUNTERS: Record<Side, { threat: RoleTag; answer: RoleTag; label: string }[]> = {
+  attack: [{ threat: 'ah', answer: 'uc', label: 'their anti-breach' }],
+  defense: [{ threat: 'hb', answer: 'ah', label: 'their hard breachers' }, { threat: 'uc', answer: 'ap', label: 'their utility clear' }]
+}
+const COUNTER = 0.03
 const SECONDARY: Record<Side, RoleTag[]> = { attack: ['uc', 'in'], defense: ['ap', 'in'] }
 /** Chance a random teammate covers a role (used when nothing is known about the team). */
 export const ROLE_PRIOR: Partial<Record<RoleTag, number>> = { hb: 0.2, ah: 0.3, uc: 0.3, ap: 0.15, in: 0.4 }
@@ -151,6 +159,12 @@ export function recommend(inp: RecInput): Recommendation[] {
       const fills = SECONDARY[inp.side].filter((r) => op.roles.includes(r))
       const best = fills.map((r) => ({ r, need: needOf(inp.teamCover, r) })).sort((x, y) => y.need - x.need)[0]
       if (best && best.need > 0.3) parts.push({ key: 'role', value: NEED_SECONDARY * best.need, reason: `Adds ${ROLE_LABEL[best.r]}` })
+    }
+
+    // Counters: the enemy lobby is known and brings more of a threat than usual.
+    for (const c of COUNTERS[inp.side]) {
+      const t = inp.enemyThreat?.[c.threat] ?? 0
+      if (t > 0.1 && op.roles.includes(c.answer)) parts.push({ key: 'role', value: COUNTER * t, reason: `Counters ${c.label}` })
     }
 
     // Meta: replay crowd (map/site detail) → season crowd (players you met) → tempered baseline.
