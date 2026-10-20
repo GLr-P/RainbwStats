@@ -126,16 +126,18 @@ export function buildLive(ctx: Ctx, rounds: RoundRecord[], o: BuildOpts): LiveSt
 /** State before any round of the match is recorded (round 1, from OCR or a manual preview). */
 function overrideOnly(ctx: Ctx, o: BuildOpts): Partial<LiveState> {
   const mapKey = o.override?.mapKey
-  const side = o.override?.side
-  if (!mapKey || !side) return {}
+  if (!mapKey) return {}
+  // Map known but side not yet (e.g. loading screen): attack picks first, defense as "if you're on".
+  const side = o.override?.side ?? null
+  const shown: Side = side ?? 'attack'
   const site = o.override?.site ?? null
-  const first = recsFor(ctx, { mapKey, side, site })
+  const first = recsFor(ctx, { mapKey, side: shown, site })
   return {
     phase: o.phase ?? 'loading', mapKey, side, site,
     recommendations: first,
-    outsideRoster: outsideRosterPick(ctx, { mapKey, side, site }, first[0]),
-    otherSide: otherSidePicks(ctx, mapKey, side),
-    siteRecs: siteRecsFor(ctx, mapKey, side),
+    outsideRoster: side ? outsideRosterPick(ctx, { mapKey, side, site }, first[0]) : null,
+    otherSide: otherSidePicks(ctx, mapKey, shown),
+    siteRecs: siteRecsFor(ctx, mapKey, shown),
     bans: banSuggestions(ctx, mapKey),
     source: o.phase === 'idle' ? 'preview' : 'ocr'
   }

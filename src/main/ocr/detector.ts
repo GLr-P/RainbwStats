@@ -24,6 +24,8 @@ export class OcrDetector {
   /** Engine-provided gate: true when the game runs and round info is missing. */
   shouldRun: () => boolean = () => true
   sitesByMap: (mapKey: string) => string[] = () => []
+  /** Called when a frame shows Siege's main menu. */
+  onMenu: () => void = () => undefined
   debugDir: string | null = null
 
   constructor(onDetect: (d: Detection, newMatch: boolean) => void) { this.onDetect = onDetect }
@@ -58,8 +60,10 @@ export class OcrDetector {
       writeFileSync(file, src.thumbnail.toPNG())
       const lines = await this.worker.recognize(file)
       const found = detect(lines, this.sitesByMap)
+      const menu = isMenu(lines)
+      if (menu) { this.pending = null; this.onMenu() }
       // Main-menu frames are useless for debugging and would push out the interesting ones (ban phase, loading).
-      if (this.debugDir) { if (isMenu(lines)) rmSync(file, { force: true }); else this.keepDebug(dir, stamp, lines, found) }
+      if (this.debugDir) { if (menu) rmSync(file, { force: true }); else this.keepDebug(dir, stamp, lines, found) }
       // Require the same reading in two consecutive frames before acting on it.
       const sig = `${found.mapKey ?? ''}|${found.side ?? ''}|${found.site ?? ''}`
       const confirmed = sig !== '||' && sig === this.pending

@@ -120,6 +120,7 @@ app.whenReady().then(async () => {
   const ocr = new OcrDetector((d, fresh) => engine.setDetected(d, fresh))
   ocr.shouldRun = () => engine.needsRoundInfo
   ocr.sitesByMap = (k) => db.sites(k).map((s) => s.site)
+  ocr.onMenu = () => engine.sawMenu()
   const ocrDebugDir = join(dataDir, 'ocr-debug')
   ocr.debugDir = settings.get().ocrDebug ? ocrDebugDir : null
 

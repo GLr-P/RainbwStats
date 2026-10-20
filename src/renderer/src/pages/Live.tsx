@@ -79,7 +79,7 @@ function Picks({ s }: { s: LiveState }) {
   const where = s.site ? 'this site' : s.mapKey ? mapName(s.mapKey) : 'overall'
   return (
     <div className="panel">
-      <h2>{s.phase === 'ended' ? 'Picks for this map' : 'Your picks'} <SideTag side={s.side} /> <span className="sub">{where} · from your roster</span></h2>
+      <h2>{s.phase === 'ended' ? 'Picks for this map' : s.side ? 'Your picks' : 'If you attack'} <SideTag side={s.side ?? 'attack'} /> <span className="sub">{where} · from your roster</span></h2>
       {s.recommendations.length === 0 ? <div className="empty">No operators in your roster for this side. Open Roster to choose some.</div> : (
         <div className="picks">
           {s.recommendations.map((r, i) => <Pick key={r.operatorId} r={r} i={i} />)}

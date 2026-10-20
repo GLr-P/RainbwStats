@@ -113,3 +113,32 @@ describe('learned side swaps', () => {
     expect(nextSide('attack', 'attack', 4, 6, new Map())).toBe('defense') // no history: format rule
   })
 })
+
+describe('next match after one that never looked finished', () => {
+  const unfinished = async () => {
+    const db = openDb(':memory:')
+    for (const r of rounds.slice(0, 3)) db.saveRound(r) // 2 rounds won by the enemy, 1 by us: not over by the 6-round rule
+    const lobby = { cards: async () => ({ cards: [] }) } as unknown as LobbyService
+    const engine = new LiveEngine(ctxFor(db), lobby, () => null)
+    ;(engine as unknown as { gameRunning: boolean }).gameRunning = true
+    await (engine as unknown as { showMatch(id: string, live: boolean): Promise<void> }).showMatch(rounds[0]!.matchId, true)
+    expect(engine.state.phase).toBe('match')
+    return engine
+  }
+  it('ends it when the main menu is seen, so round 1 of the next match shows', async () => {
+    const engine = await unfinished()
+    engine.sawMenu()
+    expect(engine.state.phase).toBe('ended')
+    engine.setDetected({ mapKey: 'bank', side: 'attack' }, false)
+    expect(engine.state).toMatchObject({ mapKey: 'bank', side: 'attack', phase: 'loading' })
+  })
+  it('ends it when a different map is read well after the last round', async () => {
+    const engine = await unfinished()
+    ;(engine as unknown as { lastRoundAt: number }).lastRoundAt = Date.now()
+    engine.setDetected({ mapKey: 'bank' }, false) // last round "just now": treated as a misread
+    expect(engine.state.mapKey).toBe('plane')
+    ;(engine as unknown as { lastRoundAt: number }).lastRoundAt = Date.now() - 5 * 60_000
+    engine.setDetected({ mapKey: 'bank', side: 'defense' }, false)
+    expect(engine.state).toMatchObject({ mapKey: 'bank', side: 'defense' })
+  })
+})

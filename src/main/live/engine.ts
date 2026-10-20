@@ -30,6 +30,10 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
   private override: { mapKey?: string; side?: Side; site?: string | null } | undefined
   private pending = new Map<string, NodeJS.Timeout>()
   private current: LiveState = emptyLive()
+  /** When the last round file arrived, and whether the main menu was seen since (= that match is over). */
+  private lastRoundAt = 0
+  private menuSeen = false
+  private readonly now: () => number = Date.now
   lastIngest: string | null = null
   /** Called with lobby profile ids after ranks load (Ubisoft operator stats sync). */
   onLobby: ((ids: string[]) => Promise<unknown>) | null = null
@@ -108,6 +112,8 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     const rec: RoundRecord | null = ingestFile(this.ctx.db, path)
     if (!rec) return
     this.lastIngest = new Date().toISOString()
+    this.lastRoundAt = this.now()
+    this.menuSeen = false
     try {
       const head = parseFile(path, true)
       this.format = { roundsPerMatch: head.roundsPerMatch || 6, overtimeRounds: Number(head.props['roundspermatchovertime']) || 3 }
@@ -156,6 +162,11 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
    *  during a match it only updates side/site for the upcoming round (a misread map is ignored). */
   setDetected(found: { mapKey?: string; side?: Side; site?: string | null }, newMatch: boolean): void {
     if (this.simulating) return
+    // The previous match may never have looked "over" (leaver, surrender, unknown format). It is over once
+    // the main menu was seen, or a different map is read well after the last recorded round.
+    const otherMap = !!found.mapKey && !!this.current.mapKey && found.mapKey !== this.current.mapKey
+    const stale = this.now() - this.lastRoundAt > 90_000
+    if (this.current.phase === 'match' && (this.menuSeen || (otherMap && stale))) { this.current = { ...this.current, phase: 'ended' }; newMatch = true }
     const p = this.current.phase
     const d = p === 'match' ? { side: found.side, site: found.site } : found
     if (p === 'match') newMatch = false
@@ -165,6 +176,13 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
     if (!this.matchId && !d.mapKey && !this.override?.mapKey) return
     this.override = { ...this.override, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined)) }
     this.push()
+  }
+
+  /** Screen reading saw Siege's main menu: whatever match was on screen is over. */
+  sawMenu(): void {
+    if (this.menuSeen || this.simulating) return
+    this.menuSeen = true
+    if (this.current.phase === 'match' || this.current.phase === 'loading') { this.override = undefined; this.push(this.matchId ? this.ctx.db.roundsOfMatch(this.matchId) : [], 'ended') }
   }
 
   /** Shows the most recent recorded match regardless of age (screenshots / demo). */
