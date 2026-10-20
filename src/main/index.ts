@@ -121,7 +121,6 @@ app.whenReady().then(async () => {
   ocr.shouldRun = () => engine.needsRoundInfo
   ocr.sitesByMap = (k) => db.sites(k).map((s) => s.site)
   ocr.onMenu = () => engine.sawMenu()
-  ocr.minInterval = () => (engine.inMatch ? 8000 : 0)
   const ocrDebugDir = join(dataDir, 'ocr-debug')
   ocr.debugDir = settings.get().ocrDebug ? ocrDebugDir : null
 

@@ -1,5 +1,6 @@
 // Persistent Windows OCR worker: one PowerShell process using the built-in Windows.Media.Ocr
 // engine (no downloads, no native modules). Send a PNG path, receive the recognized lines.
+import { constants, setPriority } from 'node:os'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { resolve as resolvePath } from 'node:path'
@@ -54,6 +55,8 @@ export class OcrWorker {
     const encoded = Buffer.from(SCRIPT, 'utf16le').toString('base64')
     const proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { windowsHide: true })
     this.proc = proc
+    // Never compete with the game for CPU.
+    try { if (proc.pid) setPriority(proc.pid, constants.priority.PRIORITY_BELOW_NORMAL) } catch { /* not allowed: keep default */ }
     const rl = createInterface({ input: proc.stdout })
     if (process.env['RS_OCR_DEBUG']) proc.stderr.pipe(process.stderr)
     this.ready = new Promise((resolve, reject) => {

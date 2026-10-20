@@ -24,9 +24,11 @@ export class OcrDetector {
   /** Engine-provided gate: true when the game runs and round info is missing. */
   shouldRun: () => boolean = () => true
   sitesByMap: (mapKey: string) => string[] = () => []
-  /** Minimum ms between reads (the engine slows it down during a match). */
-  minInterval: () => number = () => 0
+  /** Pacing: slow in Siege's menus, quick between the menu and round 1, then gives up after 2 minutes
+   *  without a reading (so a missed round 1 never keeps capturing during play). */
   private lastRun = 0
+  private nextDelay = 0
+  private activeSince: number | null = null
   /** Called when a frame shows Siege's main menu. */
   onMenu: () => void = () => undefined
   debugDir: string | null = null
@@ -35,7 +37,7 @@ export class OcrDetector {
 
   start(intervalMs = 2000): void {
     if (this.timer) return
-    this.timer = setInterval(() => void this.tick(), intervalMs)
+    this.timer = setInterval(() => void this.tick(), Math.min(intervalMs, 1000))
   }
 
   stop(): void {
@@ -45,15 +47,16 @@ export class OcrDetector {
   }
 
   private async tick(): Promise<void> {
-    if (this.busy || !this.shouldRun() || Date.now() - this.lastRun < this.minInterval()) return
+    if (!this.shouldRun()) { this.activeSince = null; this.nextDelay = 0; return }
+    if (this.busy || Date.now() - this.lastRun < this.nextDelay) return
     this.busy = true
     this.lastRun = Date.now()
     try {
       const d = screen.getPrimaryDisplay()
-      const width = Math.min(1600, d.size.width)
+      const width = Math.min(1280, d.size.width) // small capture: enough for Siege's large labels, cheap to grab
       // Only while Siege is the foreground app: never read other apps (a code editor once "showed"
       // map Border). Checked via the OCR worker, so it works in fullscreen, borderless and windowed.
-      if (!GAME_PROCESS.test(await this.worker.foreground())) { this.pending = null; return }
+      if (!GAME_PROCESS.test(await this.worker.foreground())) { this.pending = null; this.nextDelay = 3000; return }
       const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width, height: Math.round((width * d.size.height) / d.size.width) } })
       const src = sources.find((s) => s.display_id === String(d.id)) ?? sources[0]
       if (!src || src.thumbnail.isEmpty()) { this.pending = null; return }
@@ -65,7 +68,11 @@ export class OcrDetector {
       const lines = await this.worker.recognize(file)
       const found = detect(lines, this.sitesByMap)
       const menu = isMenu(lines)
-      if (menu) { this.pending = null; this.onMenu() }
+      if (menu) { this.pending = null; this.onMenu(); this.activeSince = null; this.nextDelay = 6000 }
+      else {
+        this.activeSince ??= Date.now()
+        this.nextDelay = Date.now() - this.activeSince > 120_000 ? 30_000 : 1500
+      }
       // Main-menu frames are useless for debugging and would push out the interesting ones (ban phase, loading).
       if (this.debugDir) { if (menu) rmSync(file, { force: true }); else this.keepDebug(dir, stamp, lines, found) }
       // Require the same reading in two consecutive frames before acting on it.

@@ -196,3 +196,21 @@ describe('ranked side rule', () => {
     expect(seq('defense', 6)).toEqual(['defense', 'defense', 'defense', 'attack', 'attack', 'attack'])
   })
 })
+
+describe('screen reading only for round 1', () => {
+  it('is off during a match and back on once a stalled match times out', async () => {
+    const db = openDb(':memory:')
+    for (const r of rounds.slice(0, 3)) db.saveRound(r)
+    const engine = new LiveEngine(ctxFor(db), { cards: async () => ({ cards: [] }) } as unknown as LobbyService, () => null)
+    const e = engine as unknown as { gameRunning: boolean; lastRoundAt: number; showMatch(id: string, live: boolean): Promise<void>; tick(): Promise<void> }
+    e.gameRunning = true
+    await e.showMatch(rounds[0]!.matchId, true)
+    expect(engine.state.phase).toBe('match')
+    expect(engine.needsRoundInfo).toBe(false) // no screen reading mid-match
+    e.lastRoundAt = Date.now() - 7 * 60_000
+    await e.tick()
+    expect(engine.state.phase).toBe('ended')
+    e.gameRunning = true // tick() re-detects the game; Siege isn't running on the test machine
+    expect(engine.needsRoundInfo).toBe(true) // ready for the next match's round 1
+  })
+})

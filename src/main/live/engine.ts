@@ -57,7 +57,8 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
   get needsRoundInfo(): boolean {
     // Between a round ending (new replay file clears the override) and the next operator-select
     // screen being read. Idle during gameplay once the side is known.
-    return this.gameRunning && !this.simulating && !this.override?.side
+    // Screen reading is only for round 1: never during a match (sides come from replays + the ranked rule).
+    return this.gameRunning && !this.simulating && this.current.phase !== 'match' && !this.override?.side
   }
 
   start(): void {
@@ -154,6 +155,11 @@ export class LiveEngine extends EventEmitter<{ state: [LiveState]; ingested: [nu
   private async tick(): Promise<void> {
     // MatchReplay may only appear after the user enables replays in game: start watching then.
     if (!this.watcher) { const root = this.root(); if (root && existsSync(root)) { this.restartWatcher(); void this.rescan() } }
+    // A match with no new round for 6 minutes is over (leaver, remake…), so round 1 of the next one can be read.
+    if (this.current.phase === 'match' && !this.simulating && this.lastRoundAt && this.now() - this.lastRoundAt > 6 * 60_000) {
+      this.override = undefined
+      this.push(this.matchId ? this.ctx.db.roundsOfMatch(this.matchId) : [], 'ended')
+    }
     const running = await isGameRunning()
     if (running === this.gameRunning || this.simulating) return
     this.gameRunning = running
