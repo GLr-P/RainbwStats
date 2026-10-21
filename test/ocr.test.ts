@@ -49,10 +49,18 @@ describe('OCR debug frame retention', () => {
   it('keeps at most 40 frames when OCR errors before it writes sidecar text', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rainbwstats-ocr-test-'))
     try {
-      for (let i = 0; i < 81; i++) writeFileSync(join(dir, `frame-${String(i).padStart(13, '0')}.png`), '')
+      // 60 failed frames (.png only), then 20 successful ones (.png + .txt)
+      for (let i = 0; i < 80; i++) {
+        const stamp = String(i).padStart(13, '0')
+        writeFileSync(join(dir, `frame-${stamp}.png`), '')
+        if (i >= 60) writeFileSync(join(dir, `frame-${stamp}.txt`), '')
+      }
       const { trimDebugFrames } = await import('../src/main/ocr/detector')
       trimDebugFrames(dir)
-      expect(readdirSync(dir)).toHaveLength(80)
+      const left = readdirSync(dir)
+      expect(left.filter((f) => f.endsWith('.png'))).toHaveLength(40)
+      expect(left.filter((f) => f.endsWith('.txt'))).toHaveLength(20)
+      expect(left.sort()[0]).toBe(`frame-${String(40).padStart(13, '0')}.png`)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

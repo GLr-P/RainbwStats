@@ -14,10 +14,13 @@ export function isMenu(lines: unknown): boolean {
   return text.includes('BROWSE PLAYLISTS') || ['OPERATORS', 'BATTLEPASS', 'LOCKER', 'CAREER'].filter((w) => text.includes(w)).length >= 3
 }
 
-/** Keep debug output bounded even when OCR itself fails before a text sidecar can be written. */
-export function trimDebugFrames(dir: string): void {
-  const frames = readdirSync(dir).filter((f) => /^frame-\d+\.(png|txt)$/.test(f)).sort()
-  for (const f of frames.slice(0, Math.max(0, frames.length - 80))) rmSync(join(dir, f), { force: true })
+/** Keep only the newest 40 debug frames (a frame is its .png plus, when OCR succeeded, its .txt). */
+export function trimDebugFrames(dir: string, keep = 40): void {
+  const stampOf = (f: string): string => f.slice(6, f.lastIndexOf('.'))
+  const files = readdirSync(dir).filter((f) => /^frame-\d+\.(png|txt)$/.test(f))
+  const stamps = [...new Set(files.map(stampOf))].sort()
+  const old = new Set(stamps.slice(0, Math.max(0, stamps.length - keep)))
+  for (const f of files) if (old.has(stampOf(f))) rmSync(join(dir, f), { force: true })
 }
 
 export class OcrDetector {
@@ -92,7 +95,7 @@ export class OcrDetector {
       }
     } catch {
       // A failed OCR run has no text sidecar, so it would otherwise bypass keepDebug's 40-frame cap.
-      if (this.debugDir) trimDebugFrames(this.debugDir)
+      if (this.debugDir) try { trimDebugFrames(this.debugDir) } catch { /* best effort */ }
     } finally {
       this.busy = false
     }
