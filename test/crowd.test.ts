@@ -58,6 +58,21 @@ describe('global crowd database', () => {
     expect(nextBatch(db, 'Y11S3').body.ops).toEqual([{ p: pseudonym(OTHER), season: 'Y11S3', op: 'ash', rounds: 45, wins: 25, band: 5 }])
   })
 
+  it('two players in the same match upload the same round keys (no double counting)', () => {
+    const a = seeded()
+    const b = openDb(':memory:')
+    // Teammate's copy of the same match: recorded by someone else, and one player has no profile id in it.
+    const other = rounds[0]!.players.find((p) => p.profileId !== rounds[0]!.recordingProfileId)!
+    const nameOnly = rounds[0]!.players.find((p) => p.profileId !== other.profileId && p.profileId !== rounds[0]!.recordingProfileId)!
+    for (const r of rounds) b.saveRound({ ...r, matchType: 2, recordingProfileId: other.profileId,
+      players: r.players.map((p) => (p.profileId === nameOnly.profileId ? { ...p, profileId: `name:${p.username}` } : p)) })
+    const keysA = nextBatch(a, 'Y11S3').body.rounds.map((r) => r.k)
+    const keysB = nextBatch(b, 'Y11S3').body.rounds.map((r) => r.k)
+    expect(keysB.length).toBeGreaterThan(0)
+    expect(keysB.every((k) => keysA.includes(k))).toBe(true) // the server ignores every one of B's rows as already known
+    expect(new Set([...keysA, ...keysB]).size).toBe(keysA.length)
+  })
+
   it('uploads only when sharing, downloads for everyone', async () => {
     const db = seeded()
     const posts: unknown[] = []

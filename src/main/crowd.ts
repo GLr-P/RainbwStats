@@ -34,6 +34,10 @@ export function nextBatch(db: Db, season: string): CrowdBatch {
     for (const r of rows) {
       const op = operatorById(r.operatorId)
       if (!op || op.id.startsWith('x:')) continue // unknown/placeholder operators are not shared
+      // Keys must be the same whoever in the lobby uploads the match, or it counts twice. A name-only
+      // player (no profile id in this replay) may have an id in a teammate's copy, and a match without
+      // an id can't be told apart from others: skip both.
+      if (!matchId || r.profileId.startsWith('name:')) continue
       rounds.push({ k: pseudonym(`${matchId}|${r.round}|${r.profileId}`), season: r.season, type: r.type, map: r.mapKey, site: r.site, side: r.side, op: op.key, won: r.won ? 1 : 0, band: bandOf(r.rank) })
     }
     matches.push(matchId)
