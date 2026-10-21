@@ -47,23 +47,29 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
   const words = (l: string) => l.split(' ').length
 
   // Map: full names first ("THEME PARK"), then distinctive first words ("KAFE", "NIGHTHAVEN").
+  // Several map names on screen = the map vote ("MAP SELECTION"), not the map being played (2026-10-20 frames).
   let mapScore = 0
+  const seen = new Set<string>()
   for (const l of L) {
     for (const m of maps) {
       if (words(l) > words(m.name) + 1) continue
       const full = bestMatch(l, [m.name])?.score ?? 0
       const short = m.short.length >= 5 ? (bestMatch(l, [m.short])?.score ?? 0) - 0.05 : 0
       const sc = Math.max(full, short)
+      if (sc >= 0.82) seen.add(m.key)
       if (sc > mapScore && sc >= 0.82) { mapScore = sc; out.mapKey = m.key }
     }
   }
+  if (seen.size > 1 || L.some((l) => l.replace(/ /g, '').includes('MAPSELECTION'))) delete out.mapKey
 
   // Side: standalone label only; a frame showing both ATTACK and DEFENSE labels is ambiguous.
   // Round results ("ATTACKERS WIN", "DEFENDERS ELIMINATED") and ban screens name *other* sides: no side from them.
   const NOT_MINE = new Set(['WIN', 'WINS', 'WON', 'LOST', 'LOSE', 'ELIMINATED', 'VICTORY', 'DEFEAT', 'BAN', 'BANS', 'BANNED', 'MVP'])
   // OCR often runs the ban heading together ("BANA DEFENDER", 2026-10-19 frames), so match it as a phrase too.
   const banScreen = L.some((l) => /(^| )BAN ?AN? ?(ATTACKER|DEFENDER)/.test(l))
-  const resultScreen = banScreen || L.some((l) => l.split(' ').some((w) => NOT_MINE.has(w)))
+  // End-of-match lineup: OCR often misses "VICTORY" but reads the menu around it.
+  const endScreen = L.some((l) => /MATCHRECAP|TEAMLINEUP|COMMENDAGAIN|TOCOMMEND|NEWMATCH|FINDANOTHERMATCH|KEEPPLAYING/.test(l.replace(/ /g, '')))
+  const resultScreen = banScreen || endScreen || L.some((l) => l.split(' ').some((w) => NOT_MINE.has(w)))
   const sides = new Set<Side>()
   for (const l of resultScreen ? [] : L) {
     if (words(l) > 2) continue
@@ -74,7 +80,7 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
   else if (sides.size === 0) {
     // Operator select lists only your side's operators: their names give your side. Ban screens show
     // the enemy's, so frames mentioning bans are skipped.
-    if (!banScreen && !L.some((l) => l.split(' ').some((w) => w === 'BAN' || w === 'BANS' || w === 'BANNED'))) {
+    if (!resultScreen && !L.some((l) => l.split(' ').some((w) => w === 'BAN' || w === 'BANS' || w === 'BANNED'))) {
       const vote = { attack: 0, defense: 0 }
       for (const l of L) {
         if (words(l) > 2) continue

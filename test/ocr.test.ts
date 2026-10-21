@@ -91,6 +91,22 @@ describe('ban screen read on 2026-10-19 (Border, round 4, you on attack)', () =>
   })
 })
 
+describe('frames read on 2026-10-20 (Border, round 1 attack, 4-2 win)', () => {
+  it('takes no map from the map vote', () => {
+    expect(detect(['YOURTEAM X OO i ENEMYTEAM', 'CPU: I.S', 'VILLA', '44', 'BORDER', 'MAP SELECTION', 'FORTRESS', 'COASTLINE', 'OUTBACK'])).toEqual({})
+    expect(detect(['YOUR TEAM', 'x', '00', 'i', 'ENEMY TEAM', 'COASTLINE', 'OUTBACK', 'FPS: 12g'])).toEqual({})
+  })
+  it('still reads round 1 from the operator lineup (which says "COMMENDATION STREAK")', () => {
+    const lines = ['D JACKAL', 'West Vehicle Exit', 'SHOW TEAM LOADOUT&DETAILS', '143', 'GPU:', 'ROUND 1', 'NOMAD', '? RANDOM', 'z', 'HIBANA', 'West Vehicle Exit', 'z', 'DOKKAEBI', 'COMMENDATION STREAK', 'C) Valley', 'RANKED', 'BORDER', 'ASH', 'West Vehicle Exit']
+    expect(detect(lines)).toEqual({ mapKey: 'border', side: 'attack' })
+  })
+  it('takes no side from the end-of-match lineup', () => {
+    const d = detect(['4-2', 'LESION', 'O GUI[WCE', 'O w.tb', 'TEAMLINEUP', 'RANKED', 'DENARI', 'WAMAI', 'MATCH RECAP', 'Commend again in', 'ELA', 'KAPKAN', 'NEW MATCH WITHSQUAD', 'RANKED', 'BORDER', '44s'])
+    expect(d.mapKey).toBe('border')
+    expect(d).not.toHaveProperty('side')
+  })
+})
+
 describe('screens that name another side', () => {
   it('never take a side from round results or ban screens', async () => {
     const { detect } = await import('../src/main/ocr/matcher')
