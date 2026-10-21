@@ -212,6 +212,8 @@ export interface Performance {
   mates: { profileId: string; name: string; matches: number; wins: number }[]
   /** Plain-language tips from your own numbers, most important first. */
   coach: CoachTip[]
+  /** Operator keys recommendations pick from (your roster, else what you play; empty = everyone). */
+  roster: Record<Side, string[]>
   /** Results of your latest games in a row, newest first (for the streak notice). */
   streak: { kind: 'win' | 'loss'; count: number; rp: number | null } | null
   loggedIn: boolean

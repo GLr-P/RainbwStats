@@ -1,7 +1,8 @@
 // Me: your rank, current session, match history and personal breakdowns in one place.
 import { useState } from 'react'
-import type { MatchRow, Performance } from '../../../shared/ipc'
-import { mapName } from '../../../shared/catalog'
+import type { MatchRow, Performance, Settings } from '../../../shared/ipc'
+import { allOperators, mapName } from '../../../shared/catalog'
+import type { CoachTip } from '../../../shared/coach'
 import { rankName } from '../../../shared/ranks'
 import type { Side } from '../../../shared/types'
 import { RankBadge, SideTag, pct, ratio, rs, useData, useSort } from '../lib'
@@ -243,15 +244,31 @@ function Mates({ p }: { p: Performance }) {
 }
 
 /** Coach: a few tips from your own numbers, biggest first. */
-function Coach({ p }: { p: Performance }) {
+function Coach({ p, settings, update, reload }: { p: Performance; settings: Settings; update: (s: Partial<Settings>) => Promise<void>; reload: () => void }) {
   if (!p.coach.length) return null
+  // Roster buttons: an empty roster means "what you play" (p.roster) or, failing that, everyone.
+  const inRoster = (a: NonNullable<CoachTip['action']>) => !p.roster[a.side].length || p.roster[a.side].includes(a.opKey)
+  const apply = async (a: NonNullable<CoachTip['action']>) => {
+    const base = settings.roster[a.side].length ? settings.roster[a.side] : p.roster[a.side].length ? p.roster[a.side] : allOperators(a.side).map((o) => o.key)
+    const next = a.add ? [...new Set([...base, a.opKey])] : base.filter((k) => k !== a.opKey)
+    await update({ roster: { ...settings.roster, [a.side]: next } })
+    reload()
+  }
   return (
     <div className="panel">
       <h2>Coach <span className="sub">what your numbers say to change, biggest first</span></h2>
       <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {p.coach.map((t) => (
           <li key={t.id}>
-            <div style={{ fontWeight: 600 }}>{t.title}</div>
+            <div className="row" style={{ gap: 10 }}>
+              <span style={{ fontWeight: 600 }}>{t.title}</span>
+              {t.action && inRoster(t.action) !== t.action.add && (
+                <button className="btn" onClick={() => void apply(t.action!)} title="Recommendations only pick from your roster (Roster tab)">
+                  {t.action.add ? 'Add to roster' : 'Remove from roster'}
+                </button>
+              )}
+              {t.action && inRoster(t.action) === t.action.add && <span className="small faint">{t.action.add ? 'In your roster' : 'Not in your roster'}</span>}
+            </div>
             <div className="small muted">{t.detail}</div>
           </li>
         ))}
@@ -260,7 +277,7 @@ function Coach({ p }: { p: Performance }) {
   )
 }
 
-export function MePage() {
+export function MePage({ settings, update }: { settings: Settings; update: (s: Partial<Settings>) => Promise<void> }) {
   const [p, reload] = useData(() => rs().performance(), [])
   if (!p) return null
   return (
@@ -277,7 +294,7 @@ export function MePage() {
         <RankCard p={p} />
         <SessionCard p={p} />
       </div>
-      <Coach p={p} />
+      <Coach p={p} settings={settings} update={update} reload={reload} />
       <div className="grid-2" style={{ gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)' }}>
         <History matches={p.matches} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}><Breakdowns p={p} /></div>

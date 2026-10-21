@@ -8,7 +8,7 @@ import { mapName, operatorById, operatorByKey } from '../shared/catalog'
 import { coach } from '../shared/coach'
 import { bandOf } from '../shared/crowd'
 import { seasonCodeToId, seasonIdToCode } from '../shared/ranks'
-import { currentSeason, globalOps, type Ctx } from './services'
+import { currentSeason, effectiveRoster, globalOps, type Ctx } from './services'
 import { sidePredictionAccuracy } from './live/state'
 
 const HOUR = 3600_000
@@ -108,7 +108,7 @@ export function sessionOf(matches: MatchRow[], now: number): SessionStats | null
 export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Performance {
   const season = currentSeason(ctx)
   const me = ctx.me()
-  const empty: Performance = { me: null, season, rank: null, rpHistory: [], pastRanks: [], sideAccuracy: { correct: 0, total: 0 }, session: null, mates: [], streak: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], coach: [], loggedIn }
+  const empty: Performance = { me: null, season, rank: null, rpHistory: [], pastRanks: [], sideAccuracy: { correct: 0, total: 0 }, session: null, mates: [], streak: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], coach: [], roster: { attack: [], defense: [] }, loggedIn }
   if (!me) return empty
   const snaps = ctx.db.rankSnapshots(me, 'ranked', seasonCodeToId(season))
   const recorded = ctx.db.recentMatches(60).map((m) => ctx.db.roundsOfMatch(m.matchId))
@@ -140,6 +140,7 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
   const mapRows = [...maps.values()]
   return {
     coach: coach({ season, prevSeason, ops, prevOps: opsOf(prevSeason), peers, peerLabel, matches, maps: mapRows, mapName }),
+    roster: { attack: rosterKeys(ctx, 'attack'), defense: rosterKeys(ctx, 'defense') },
     mates: matesOf(recorded, me), streak: streakOf(matches),
     me: { profileId: me, name: ctx.db.playerName(me) ?? 'You' }, season,
     rank: last ? { rank: last.rank, rankPoints: last.rankPoints, maxRank: last.maxRank, maxRankPoints: last.maxRankPoints, wins: last.wins, losses: last.losses, abandons: last.abandons, kills: last.kills, deaths: last.deaths, at: last.fetchedAt } : null,
@@ -149,6 +150,8 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
     session: sessionOf(matches, now), matches, sides, ops, maps: mapRows, loggedIn
   }
 }
+
+const rosterKeys = (ctx: Ctx, side: Side): string[] => effectiveRoster(ctx, side).map((id) => operatorById(id)?.key).filter((k): k is string => !!k)
 
 /** Teammates across recorded real matches (≥2 together), with how those matches went. */
 export function matesOf(matches: RoundRecord[][], me: string): Performance['mates'] {

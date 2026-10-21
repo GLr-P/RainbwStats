@@ -72,7 +72,7 @@ function App() {
         {!settings || !catalogReady ? null : page === 'live' ? <LivePage live={live} settings={settings} status={status} update={update} />
           : page === 'roster' ? <RosterPage settings={settings} update={update} />
           : page === 'maps' ? <MapsPage />
-          : page === 'me' ? <MePage />
+          : page === 'me' ? <MePage settings={settings} update={update} />
           : page === 'ops' ? <OperatorsPage />
           : page === 'meta' ? <MetaPage />
           : page === 'players' ? <PlayersPage />

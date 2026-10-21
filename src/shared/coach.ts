@@ -7,11 +7,13 @@ import type { Side } from './types'
 export interface CoachOp { opKey: string; name: string; side: Side; rounds: number; wins: number }
 export interface CoachTip {
   id: string
-  kind: 'side' | 'drop' | 'play' | 'survive' | 'map' | 'tilt'
+  kind: 'side' | 'drop' | 'play' | 'survive' | 'map' | 'site' | 'tilt' | 'fatigue'
   title: string
   detail: string
   /** Higher = more rounds at stake; tips are sorted by it. */
   weight: number
+  /** One-click follow-up: add the operator to, or remove it from, your roster. */
+  action?: { side: Side; opKey: string; add: boolean }
 }
 export interface CoachInput {
   season: string
@@ -88,7 +90,7 @@ export function coach(inp: CoachInput): CoachTip[] {
   for (const o of rated.filter((o) => o.rounds >= 15 && o.delta <= -0.04).sort((x, y) => x.delta * Math.sqrt(x.rounds) - y.delta * Math.sqrt(y.rounds)).slice(0, 2)) {
     const alt = strong.filter((s) => s.side === o.side).slice(0, 2).map((s) => s.name)
     tips.push({
-      id: `drop:${o.opKey}`, kind: 'drop', weight: -o.delta * Math.sqrt(o.rounds) * 4,
+      id: `drop:${o.opKey}`, kind: 'drop', weight: -o.delta * Math.sqrt(o.rounds) * 4, action: { side: o.side, opKey: o.opKey, add: false },
       title: `Pick ${o.name} less`,
       detail: `You win ${pct(o.wins / o.rounds)} of ${o.rounds} rounds with ${o.name} (${both}); ${inp.peerLabel} win ${pct(o.peer)} with them.` +
         (alt.length ? ` You do much better on ${alt.join(' and ')}.` : '')
@@ -97,7 +99,7 @@ export function coach(inp: CoachInput): CoachTip[] {
 
   for (const o of strong.filter((o) => o.now / sideNow(o.side) < 0.06).slice(0, 2)) {
     tips.push({
-      id: `play:${o.opKey}`, kind: 'play', weight: o.delta * Math.sqrt(o.rounds) * 3,
+      id: `play:${o.opKey}`, kind: 'play', weight: o.delta * Math.sqrt(o.rounds) * 3, action: { side: o.side, opKey: o.opKey, add: true },
       title: `Bring back ${o.name}`,
       detail: `You win ${pct(o.wins / o.rounds)} of ${o.rounds} rounds with ${o.name} (${inp.peerLabel}: ${pct(o.peer)}), but you've ${o.now ? `only played them ${o.now} rounds` : 'not played them'} this season.`
     })
@@ -133,7 +135,28 @@ export function coach(inp: CoachInput): CoachTip[] {
     }
   }
 
-  // 5. Tilt: how you do right after two losses in a row (same sitting, under 3 h apart).
+  // 5. Defense sites (replays): one site you keep losing is a setup to learn.
+  const def = inp.matches.filter((m) => m.kind !== 'Custom' && m.mapKey).flatMap((m) => m.rounds.filter((r) => r.side === 'defense' && r.site).map((r) => ({ ...r, mapKey: m.mapKey! })))
+  if (def.length >= 20) {
+    const avg = def.filter((r) => r.won).length / def.length
+    const bySite = new Map<string, { mapKey: string; site: string; rounds: number; wins: number }>()
+    for (const r of def) {
+      const k = `${r.mapKey}|${r.site}`
+      const a = bySite.get(k) ?? { mapKey: r.mapKey, site: r.site, rounds: 0, wins: 0 }
+      a.rounds++; a.wins += +r.won
+      bySite.set(k, a)
+    }
+    const worst = [...bySite.values()].filter((s) => s.rounds >= 6).map((s) => ({ s, d: (s.wins + avg * 6) / (s.rounds + 6) - avg })).sort((a, b) => a.d - b.d)[0]
+    if (worst && worst.d <= -0.12) {
+      tips.push({
+        id: `site:${worst.s.mapKey}|${worst.s.site}`, kind: 'site', weight: -worst.d * Math.sqrt(worst.s.rounds) * 3,
+        title: `Learn the ${worst.s.site} setup on ${inp.mapName(worst.s.mapKey)}`,
+        detail: `You win ${pct(worst.s.wins / worst.s.rounds)} of ${worst.s.rounds} defense rounds there, against ${pct(avg)} on your other defense sites. The Maps tab shows which operators win on that site.`
+      })
+    }
+  }
+
+  // 6. Tilt: how you do right after two losses in a row (same sitting, under 3 h apart).
   const games = inp.matches.filter((m) => !m.games && (m.result === 'win' || m.result === 'loss')).slice().reverse()
   if (games.length >= 15) {
     let after = 0, afterWins = 0
@@ -148,6 +171,24 @@ export function coach(inp: CoachInput): CoachTip[] {
         id: 'tilt', kind: 'tilt', weight: (overall - afterWins / after) * Math.sqrt(after) * 3,
         title: 'Take a break after two losses',
         detail: `After losing two games in a row you win ${pct(afterWins / after)} of the next game (${after} times), against ${pct(overall)} overall.`
+      })
+    }
+  }
+
+  // 7. Fatigue: long sittings. Game 1–3 of a sitting against game 4 onwards.
+  if (games.length >= 16) {
+    const early = { n: 0, w: 0 }, late = { n: 0, w: 0 }
+    let idx = 0
+    for (let i = 0; i < games.length; i++) {
+      idx = i > 0 && Date.parse(games[i]!.at) - Date.parse(games[i - 1]!.at) <= 3 * 3600_000 ? idx + 1 : 1
+      const b = idx <= 3 ? early : late
+      b.n++; b.w += +(games[i]!.result === 'win')
+    }
+    if (early.n >= 8 && late.n >= 8 && late.w / late.n <= early.w / early.n - 0.12) {
+      tips.push({
+        id: 'fatigue', kind: 'fatigue', weight: (early.w / early.n - late.w / late.n) * Math.sqrt(late.n) * 3,
+        title: 'Stop after three games',
+        detail: `You win ${pct(early.w / early.n)} of the first three games of a sitting and ${pct(late.w / late.n)} from the fourth game on (${late.n} games).`
       })
     }
   }
