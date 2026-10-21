@@ -100,6 +100,15 @@ describe('frames read on 2026-10-20 (Border, round 1 attack, 4-2 win)', () => {
     const lines = ['D JACKAL', 'West Vehicle Exit', 'SHOW TEAM LOADOUT&DETAILS', '143', 'GPU:', 'ROUND 1', 'NOMAD', '? RANDOM', 'z', 'HIBANA', 'West Vehicle Exit', 'z', 'DOKKAEBI', 'COMMENDATION STREAK', 'C) Valley', 'RANKED', 'BORDER', 'ASH', 'West Vehicle Exit']
     expect(detect(lines)).toEqual({ mapKey: 'border', side: 'attack' })
   })
+  it('takes no side from a ban screen whose "BAN" OCR dropped', () => {
+    const d = detect(['YOURTEA< O', 'A DEFENDER', "Selected Operator can't be used until role swap or overtime.", '0:14', 'ROUND 1', 'RANKED O', 'CLUBHOUSE', '144'])
+    expect(d).toEqual({ mapKey: 'clubhouse' })
+  })
+  it('reads "CLUB HOUSE" as Clubhouse, not House', () => {
+    expect(detect(['RANKED', 'CLUB HOUSE', 'O nanobothd', 'OURTEAM', 'ENEMY TEAM j']).mapKey).toBe('clubhouse')
+    expect(detect(['RANKED', 'HOUSE']).mapKey).toBe('house')
+    expect(detect(['MAP SELECTED', 'CLUBHOUSE']).mapKey).toBe('clubhouse')
+  })
   it('takes no side from the end-of-match lineup', () => {
     const d = detect(['4-2', 'LESION', 'O GUI[WCE', 'O w.tb', 'TEAMLINEUP', 'RANKED', 'DENARI', 'WAMAI', 'MATCH RECAP', 'Commend again in', 'ELA', 'KAPKAN', 'NEW MATCH WITHSQUAD', 'RANKED', 'BORDER', '44s'])
     expect(d.mapKey).toBe('border')
