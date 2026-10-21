@@ -31,7 +31,11 @@ export interface CoachInput {
   matches: MatchRow[]
   maps: { mapKey: string; matches: number; wins: number; rounds: number; roundWins: number }[]
   mapName: (key: string) => string
+  /** Recorded (non-custom) rounds: you, and your teammates in the same rounds. */
+  vsTeam?: { me: Duel; mates: Duel }
 }
+/** Player-rounds: how many, deaths, deaths without a kill, kills. */
+export interface Duel { rounds: number; died: number; blank: number; kills: number }
 
 const PRIOR = 20 // rounds of "average player" mixed into every operator rate
 const pct = (x: number) => `${Math.round(x * 100)}%`
@@ -119,17 +123,24 @@ export function coach(inp: CoachInput): CoachTip[] {
     })
   }
 
-  // 3. Survival (replays): how much your team depends on you staying alive.
-  const rounds = inp.matches.filter((m) => m.kind !== 'Custom').flatMap((m) => m.rounds)
-  if (rounds.length >= 20) {
-    const died = rounds.filter((r) => r.died), lived = rounds.filter((r) => !r.died)
-    const rate = (rs: typeof rounds) => rs.filter((r) => r.won).length / Math.max(1, rs.length)
-    const blank = died.filter((r) => r.kills === 0).length / Math.max(1, died.length)
-    if (died.length >= 8 && lived.length >= 8 && rate(lived) - rate(died) >= 0.2) {
+  // 3. Survival (replays), against your own teammates in the same rounds. (Comparing your team's win rate
+  // when you live vs die says nothing: won rounds always have survivors.)
+  const t = inp.vsTeam
+  if (t && t.me.rounds >= 20 && t.mates.rounds >= 60) {
+    const r = (d: Duel, n: number) => n / d.rounds
+    const blankGap = r(t.me, t.me.blank) - r(t.mates, t.mates.blank), deathGap = r(t.me, t.me.died) - r(t.mates, t.mates.died)
+    const kpr = (d: Duel) => (d.kills / d.rounds).toFixed(2)
+    if (blankGap >= 0.08) {
       tips.push({
-        id: 'survive', kind: 'survive', weight: (rate(lived) - rate(died)) * Math.sqrt(rounds.length) * 2 * (died.length / rounds.length),
-        title: 'Staying alive wins your rounds',
-        detail: `Your team wins ${pct(rate(lived))} of rounds when you survive and ${pct(rate(died))} when you die. You die in ${pct(died.length / rounds.length)} of rounds, and ${pct(blank)} of those deaths come before you get a kill. Take fewer early duels: let a teammate swing first so you can trade.`
+        id: 'survive', kind: 'survive', weight: blankGap * Math.sqrt(t.me.rounds) * 4,
+        title: 'You die before getting a kill more than your teammates',
+        detail: `You die without a kill in ${pct(r(t.me, t.me.blank))} of rounds; your teammates in the same games: ${pct(r(t.mates, t.mates.blank))}. Take fewer early duels: let a teammate swing first so you can trade, and use utility or a drone before you peek.`
+      })
+    } else if (deathGap >= 0.1) {
+      tips.push({
+        id: 'survive', kind: 'survive', weight: deathGap * Math.sqrt(t.me.rounds) * 3,
+        title: 'You die more often than your teammates',
+        detail: `You die in ${pct(r(t.me, t.me.died))} of rounds and your teammates in ${pct(r(t.mates, t.mates.died))} (same games), with ${kpr(t.me)} kills per round against their ${kpr(t.mates)}. Trade your life for more: stay near a teammate and don't take the second fight while hurt.`
       })
     }
   }

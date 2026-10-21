@@ -9,6 +9,16 @@ const base = (over: Partial<CoachInput> = {}): CoachInput => ({
 })
 
 describe('coach', () => {
+  it('compares your deaths with your teammates in the same rounds, not with round results', () => {
+    const vs = (me: [number, number, number, number], mates: [number, number, number, number]) => ({ me: { rounds: me[0], died: me[1], blank: me[2], kills: me[3] }, mates: { rounds: mates[0], died: mates[1], blank: mates[2], kills: mates[3] } })
+    const early = coach(base({ vsTeam: vs([100, 70, 45, 60], [400, 240, 120, 300]) })).find((t) => t.id === 'survive')!
+    expect(early.title).toBe('You die before getting a kill more than your teammates')
+    expect(early.detail).toContain('45% of rounds; your teammates in the same games: 30%')
+    const often = coach(base({ vsTeam: vs([100, 75, 32, 60], [400, 240, 120, 300]) })).find((t) => t.id === 'survive')!
+    expect(often.detail).toContain('You die in 75% of rounds and your teammates in 60%')
+    expect(coach(base({ vsTeam: vs([100, 62, 31, 70], [400, 240, 120, 300]) })).some((t) => t.id === 'survive')).toBe(false)
+  })
+
   it('says nothing without enough data', () => {
     expect(coach(base({ ops: [op('kali', 'attack', 5, 1), op('azami', 'defense', 5, 4)] }))).toEqual([])
   })
@@ -67,7 +77,7 @@ describe('coach', () => {
     expect(tips.find((t) => t.id === 'fatigue')!.detail).toContain('100% of the first three games of a sitting and 0% from the fourth game on (12 games)')
   })
 
-  it('uses replays for survival, the worst map and tilt', () => {
+  it('uses replays for the worst map and tilt', () => {
     const at = (h: number) => new Date(Date.UTC(2026, 9, 1) + h * 3600_000).toISOString()
     const round = (won: boolean, died: boolean, kills = 0) => ({ round: 1, side: 'attack' as const, site: '', op: 'Fuze', opKey: 'fuze', won, kills, died })
     // 21 games in 7-game sittings: W W W L L L L. Each game after two losses is lost (6 times); 43% overall.
@@ -83,7 +93,6 @@ describe('coach', () => {
     ]
     const tips = coach(base({ matches, maps }))
     const ids = tips.map((t) => t.id)
-    expect(tips.find((t) => t.id === 'survive')!.detail).toContain('100% of rounds when you survive and 0% when you die')
     expect(ids).toContain('map:border')
     expect(tips.find((t) => t.id === 'tilt')!.detail).toContain('you win 0% of the next game (6 times), against 43% overall')
   })

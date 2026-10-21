@@ -5,7 +5,7 @@ import type { RankSnapshot } from './db'
 import type { MatchRow, Performance, SessionStats } from '../shared/ipc'
 import type { RoundRecord, Side } from '../shared/types'
 import { mapName, operatorById, operatorByKey } from '../shared/catalog'
-import { coach } from '../shared/coach'
+import { coach, type Duel } from '../shared/coach'
 import { bandOf } from '../shared/crowd'
 import { seasonCodeToId, seasonIdToCode } from '../shared/ranks'
 import { currentSeason, effectiveRoster, globalOps, type Ctx } from './services'
@@ -139,7 +139,7 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
   const peerLabel = banded.size ? `${band >= 8 ? 'Champion' : ['', 'Copper', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond'][band]} players` : 'players'
   const mapRows = [...maps.values()]
   return {
-    coach: coach({ season, prevSeason, ops, prevOps: opsOf(prevSeason), peers, peerLabel, matches, maps: mapRows, mapName }),
+    coach: coach({ season, prevSeason, ops, prevOps: opsOf(prevSeason), peers, peerLabel, matches, maps: mapRows, mapName, vsTeam: vsTeamOf(recorded, me) }),
     roster: { attack: rosterKeys(ctx, 'attack'), defense: rosterKeys(ctx, 'defense') },
     mates: matesOf(recorded, me), streak: streakOf(matches),
     me: { profileId: me, name: ctx.db.playerName(me) ?? 'You' }, season,
@@ -152,6 +152,22 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
 }
 
 const rosterKeys = (ctx: Ctx, side: Side): string[] => effectiveRoster(ctx, side).map((id) => operatorById(id)?.key).filter((k): k is string => !!k)
+
+/** You against your own teammates in the same recorded (non-custom) rounds: deaths, deaths without a kill, kills. */
+export function vsTeamOf(matches: RoundRecord[][], me: string): { me: Duel; mates: Duel } {
+  const out = { me: { rounds: 0, died: 0, blank: 0, kills: 0 }, mates: { rounds: 0, died: 0, blank: 0, kills: 0 } }
+  for (const rs of matches) for (const r of rs) {
+    if (r.matchType === 3 || r.matchType === 4) continue
+    const mine = r.players.find((p) => p.profileId === me) ?? r.players.find((p) => p.profileId === r.recordingProfileId)
+    if (!mine) continue
+    for (const p of r.players) {
+      if (p.teamIndex !== mine.teamIndex) continue
+      const d = p === mine ? out.me : out.mates
+      d.rounds++; d.died += +p.died; d.blank += +(p.died && p.kills === 0); d.kills += p.kills
+    }
+  }
+  return out
+}
 
 /** Teammates across recorded real matches (≥2 together), with how those matches went. */
 export function matesOf(matches: RoundRecord[][], me: string): Performance['mates'] {
