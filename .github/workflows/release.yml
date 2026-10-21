@@ -13,6 +13,11 @@ jobs:
         with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm run check
+      # Create the (published) release first: the NSIS and portable targets upload in parallel and would
+      # otherwise each create their own draft release, splitting the files (v0.6.19–v0.6.22).
+      - run: gh release create ${{ github.ref_name }} --title ${{ github.ref_name }} --notes "See messages.md / the site for what changed."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

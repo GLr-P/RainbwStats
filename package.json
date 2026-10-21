@@ -86,7 +86,8 @@
       {
         "provider": "github",
         "owner": "GLr-P",
-        "repo": "RainbwStats"
+        "repo": "RainbwStats",
+        "releaseType": "release"
       }
     ]
   },

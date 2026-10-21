@@ -20,7 +20,7 @@ When a phase or release finishes, tick its boxes and add a row to [docs/VERIFICA
 - Meta/site data: follow docs/META-RESEARCH.md (research scripts in scripts/research, output src/shared/data/meta.json + dataset)
 - Don't repeatedly run E2E on copies of the user's real profile: each run creates a Ubisoft session → account rate limit
 - The Bash tool collapses backslashes and breaks on backticks in heredocs / node -e. Use Write/Edit for code containing either
-- Release: bump version in package.json → tag vX.Y.Z → push tag (release.yml builds + publishes). Fallback: `npm run dist` + `gh release create` with release/*.exe, *.blockmap, latest.yml
+- Release: bump version in package.json → tag vX.Y.Z → push tag (release.yml pre-creates the release, then builds + uploads). Afterwards confirm `gh api repos/GLr-P/RainbwStats/releases/latest -q .tag_name` is the new tag: v0.6.19–0.6.22 silently stayed split drafts, so auto-update saw nothing. Fallback: `npm run dist` + `gh release create` with release/*.exe, *.blockmap, latest.yml
 - Global crowd DB: `worker/` (Cloudflare Worker + D1 `rainbwstats`, https://rainbwstats-crowd.nanotechservices.workers.dev). Contract in `src/shared/crowd.ts`. Deploy: `cd worker && npx wrangler deploy` (schema changes: `npx wrangler d1 execute rainbwstats --remote --file=schema.sql`). Test SQL locally with `npx wrangler dev --local --test-scheduled`, never by posting fake data to production
 - Visual check: `npm run shots` then look at site/img/*.png (demo data, safe to publish)
 
