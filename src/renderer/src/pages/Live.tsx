@@ -37,6 +37,7 @@ export function LivePage({ live, settings, status, update }: { live: LiveState |
       {!inMatch && !settings.shareCrowd && !settings.crowdPrompted && <SharePrompt update={update} />}
       {!inMatch && <PreviewPicker onPreview={setPreview} active={!!preview} />}
       {!inMatch && !preview && <Streak />}
+      {!preview && <CoachNote side={inMatch ? s.side : null} mapKey={inMatch ? s.mapKey : null} inMatch={!!inMatch && s.phase !== 'ended'} />}
       {!inMatch && !preview && <MapVote />}
       {s.phase === 'ended' && s.rounds.length > 0 && <Recap s={s} />}
       {(inMatch || preview) && (
@@ -217,6 +218,20 @@ function Waiting({ live, status }: { live: LiveState; status: AppStatus | undefi
         </ul>
       )}
       <Simulator hasReplay={!!st?.matches} />
+    </div>
+  )
+}
+
+/** The Coach's advice where it matters: for your side and map during a match, about sittings and map bans between matches. */
+function CoachNote({ side, mapKey, inMatch }: { side: Side | null; mapKey: string | null; inMatch: boolean }) {
+  const [p] = useData(() => rs().performance(), [])
+  const tips = (p?.coach ?? []).filter((t) => inMatch
+    ? (t.kind === 'site' ? t.mapKey === mapKey && side === 'defense' : (t.kind === 'side' || t.kind === 'drop' || t.kind === 'play') && t.side === side)
+    : t.kind === 'tilt' || t.kind === 'fatigue' || t.kind === 'map').slice(0, 2)
+  if (!tips.length) return null
+  return (
+    <div className="panel small" style={{ borderLeft: '3px solid var(--accent)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {tips.map((t) => <div key={t.id}><b>Coach: {t.title}.</b> <span className="muted">{t.detail}</span></div>)}
     </div>
   )
 }

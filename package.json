@@ -1,7 +1,7 @@
 {
   "name": "rainbwstats",
   "productName": "RainbwStats",
-  "version": "0.6.22",
+  "version": "0.6.23",
   "description": "Ad-free Rainbow Six Siege companion: live lobby stats, operator analytics and roster-aware recommendations.",
   "license": "MIT",
   "author": "GLr-P",

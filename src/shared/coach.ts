@@ -12,6 +12,9 @@ export interface CoachTip {
   detail: string
   /** Higher = more rounds at stake; tips are sorted by it. */
   weight: number
+  /** The side it's about (for in-match reminders), and the map for map/site tips. */
+  side?: Side
+  mapKey?: string
   /** One-click follow-up: add the operator to, or remove it from, your roster. */
   action?: { side: Side; opKey: string; add: boolean }
 }
@@ -55,7 +58,7 @@ export function coach(inp: CoachInput): CoachTip[] {
       const pd = pa === null ? null : before[strong].wins / before[strong].rounds
       const again = pa !== null && pd !== null && pa < pd
       tips.push({
-        id: 'side', kind: 'side', weight: gap * Math.sqrt(now[weak].rounds) * 4,
+        id: 'side', kind: 'side', side: weak, weight: gap * Math.sqrt(now[weak].rounds) * 4,
         title: `${weak === 'attack' ? 'Attack' : 'Defense'} is where you lose rounds`,
         detail: `You win ${pct(now[weak].wins / now[weak].rounds)} of ${SIDE[weak]} rounds and ${pct(now[strong].wins / now[strong].rounds)} on ${SIDE[strong]} this season` +
           (again ? `, and it was the same last season (${pct(pa)} vs ${pct(pd)}).` : '.') +
@@ -87,19 +90,30 @@ export function coach(inp: CoachInput): CoachTip[] {
   const sideNow = (s: Side) => Math.max(1, now[s].rounds)
   const strong = rated.filter((o) => o.rounds >= 10 && o.delta >= 0.04).sort((x, y) => y.delta * Math.sqrt(y.rounds) - x.delta * Math.sqrt(x.rounds))
 
+  // Why an operator goes badly, from recorded rounds: dying before getting a kill, against your other operators.
+  const recorded = inp.matches.filter((m) => m.kind !== 'Custom').flatMap((m) => m.rounds)
+  const why = (o: CoachOp): string => {
+    const mine = recorded.filter((r) => r.opKey === o.opKey), rest = recorded.filter((r) => r.opKey !== o.opKey && r.side === o.side)
+    if (mine.length < 10 || rest.length < 10) return ''
+    const blank = (rs: typeof recorded) => rs.filter((r) => r.died && r.kills === 0).length / rs.length
+    return blank(mine) >= blank(rest) + 0.1
+      ? ` In your recorded rounds with ${o.name} you die without a kill ${pct(blank(mine))} of the time (${pct(blank(rest))} on your other ${o.side} operators), so you may be taking fights this operator isn't built for.`
+      : ''
+  }
+
   for (const o of rated.filter((o) => o.rounds >= 15 && o.delta <= -0.04).sort((x, y) => x.delta * Math.sqrt(x.rounds) - y.delta * Math.sqrt(y.rounds)).slice(0, 2)) {
     const alt = strong.filter((s) => s.side === o.side).slice(0, 2).map((s) => s.name)
     tips.push({
-      id: `drop:${o.opKey}`, kind: 'drop', weight: -o.delta * Math.sqrt(o.rounds) * 4, action: { side: o.side, opKey: o.opKey, add: false },
+      id: `drop:${o.opKey}`, kind: 'drop', side: o.side, weight: -o.delta * Math.sqrt(o.rounds) * 4, action: { side: o.side, opKey: o.opKey, add: false },
       title: `Pick ${o.name} less`,
-      detail: `You win ${pct(o.wins / o.rounds)} of ${o.rounds} rounds with ${o.name} (${both}); ${inp.peerLabel} win ${pct(o.peer)} with them.` +
+      detail: `You win ${pct(o.wins / o.rounds)} of ${o.rounds} rounds with ${o.name} (${both}); ${inp.peerLabel} win ${pct(o.peer)} with them.` + why(o) +
         (alt.length ? ` You do much better on ${alt.join(' and ')}.` : '')
     })
   }
 
   for (const o of strong.filter((o) => o.now / sideNow(o.side) < 0.06).slice(0, 2)) {
     tips.push({
-      id: `play:${o.opKey}`, kind: 'play', weight: o.delta * Math.sqrt(o.rounds) * 3, action: { side: o.side, opKey: o.opKey, add: true },
+      id: `play:${o.opKey}`, kind: 'play', side: o.side, weight: o.delta * Math.sqrt(o.rounds) * 3, action: { side: o.side, opKey: o.opKey, add: true },
       title: `Bring back ${o.name}`,
       detail: `You win ${pct(o.wins / o.rounds)} of ${o.rounds} rounds with ${o.name} (${inp.peerLabel}: ${pct(o.peer)}), but you've ${o.now ? `only played them ${o.now} rounds` : 'not played them'} this season.`
     })
@@ -128,7 +142,7 @@ export function coach(inp: CoachInput): CoachTip[] {
     const worst = ok.map((m) => ({ m, d: (m.roundWins + avg * 10) / (m.rounds + 10) - avg })).sort((a, b) => a.d - b.d)[0]!
     if (worst.d <= -0.08) {
       tips.push({
-        id: `map:${worst.m.mapKey}`, kind: 'map', weight: -worst.d * Math.sqrt(worst.m.rounds) * 3,
+        id: `map:${worst.m.mapKey}`, kind: 'map', mapKey: worst.m.mapKey, weight: -worst.d * Math.sqrt(worst.m.rounds) * 3,
         title: `Ban ${inp.mapName(worst.m.mapKey)} when you can`,
         detail: `You win ${pct(worst.m.roundWins / worst.m.rounds)} of rounds on ${inp.mapName(worst.m.mapKey)} (${worst.m.wins}–${worst.m.matches - worst.m.wins} in games) against ${pct(avg)} on your other maps.`
       })
@@ -149,7 +163,7 @@ export function coach(inp: CoachInput): CoachTip[] {
     const worst = [...bySite.values()].filter((s) => s.rounds >= 6).map((s) => ({ s, d: (s.wins + avg * 6) / (s.rounds + 6) - avg })).sort((a, b) => a.d - b.d)[0]
     if (worst && worst.d <= -0.12) {
       tips.push({
-        id: `site:${worst.s.mapKey}|${worst.s.site}`, kind: 'site', weight: -worst.d * Math.sqrt(worst.s.rounds) * 3,
+        id: `site:${worst.s.mapKey}|${worst.s.site}`, kind: 'site', side: 'defense', mapKey: worst.s.mapKey, weight: -worst.d * Math.sqrt(worst.s.rounds) * 3,
         title: `Learn the ${worst.s.site} setup on ${inp.mapName(worst.s.mapKey)}`,
         detail: `You win ${pct(worst.s.wins / worst.s.rounds)} of ${worst.s.rounds} defense rounds there, against ${pct(avg)} on your other defense sites. The Maps tab shows which operators win on that site.`
       })

@@ -43,6 +43,14 @@ describe('coach', () => {
     expect(tips.find((t) => t.id === 'play:smoke')!.action).toEqual({ side: 'defense', opKey: 'smoke', add: true })
   })
 
+  it('explains a losing operator from recorded rounds', () => {
+    const rd = (opKey: string, died: boolean, kills: number) => ({ round: 1, side: 'attack' as const, site: '', op: opKey, opKey, won: !died, kills, died })
+    const m = { id: 'm', at: '2026-10-01T00:00:00Z', kind: 'Ranked', source: 'replay', mapKey: 'border', result: 'loss', score: [0, 0], rpDelta: null, rankAfter: null, kills: 0, deaths: 0, headshots: 0, ops: [],
+      rounds: [...Array.from({ length: 12 }, (_, i) => rd('kali', true, i < 9 ? 0 : 1)), ...Array.from({ length: 12 }, (_, i) => rd('fuze', i < 3, 1))] } as MatchRow
+    const tips = coach(base({ ops: [op('kali', 'attack', 40, 15)], prevOps: [op('kali', 'attack', 50, 23)], matches: [m] }))
+    expect(tips.find((t) => t.id === 'drop:kali')!.detail).toContain('die without a kill 75% of the time (0% on your other attack operators)')
+  })
+
   it('finds a defense site you keep losing and long sittings that go badly', () => {
     const at = (h: number) => new Date(Date.UTC(2026, 9, 1) + h * 3600_000).toISOString()
     const r = (site: string, won: boolean) => ({ round: 1, side: 'defense' as const, site, op: 'Smoke', opKey: 'smoke', won, kills: 1, died: false })
