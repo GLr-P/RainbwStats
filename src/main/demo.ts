@@ -2,6 +2,7 @@
 import type { LobbyService } from './ubi/lobby'
 import type { Db } from './db'
 import type { PlayerCard } from '../shared/ipc'
+import { seasonCodeToId, seasonIdToCode } from '../shared/ranks'
 
 export function demoLobby(): LobbyService {
   const card = (profileId: string, name: string): PlayerCard => {
@@ -29,4 +30,8 @@ export function seedDemoHistory(db: Db, me: string, season: string, seasonId: nu
   })
   const ops: [string, number, number][] = [['ash', 96, 55], ['sledge', 70, 37], ['zofia', 52, 25], ['thermite', 44, 25], ['rook', 88, 49], ['smoke', 61, 36], ['mira', 40, 19], ['valkyrie', 35, 20]]
   db.saveApiOpStats(me, [season], ops.map(([opKey, rounds, w]) => ({ season, playlist: 'ranked', opKey, rounds, wins: w })), new Date(now).toISOString())
+  // Last season: a losing Zofia and a strong Kaid that went unplayed, so the Coach has something to say.
+  const prev = seasonIdToCode(seasonCodeToId(season) - 1)
+  const prevOps: [string, number, number][] = [['zofia', 60, 22], ['ash', 80, 45], ['kaid', 30, 21], ['rook', 70, 39]]
+  db.saveApiOpStats(me, [prev], prevOps.map(([opKey, rounds, w]) => ({ season: prev, playlist: 'ranked', opKey, rounds, wins: w })), new Date(now).toISOString())
 }

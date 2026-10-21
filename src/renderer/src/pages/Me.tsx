@@ -242,6 +242,24 @@ function Mates({ p }: { p: Performance }) {
   )
 }
 
+/** Coach: a few tips from your own numbers, biggest first. */
+function Coach({ p }: { p: Performance }) {
+  if (!p.coach.length) return null
+  return (
+    <div className="panel">
+      <h2>Coach <span className="sub">what your numbers say to change, biggest first</span></h2>
+      <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {p.coach.map((t) => (
+          <li key={t.id}>
+            <div style={{ fontWeight: 600 }}>{t.title}</div>
+            <div className="small muted">{t.detail}</div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
 export function MePage() {
   const [p, reload] = useData(() => rs().performance(), [])
   if (!p) return null
@@ -259,6 +277,7 @@ export function MePage() {
         <RankCard p={p} />
         <SessionCard p={p} />
       </div>
+      <Coach p={p} />
       <div className="grid-2" style={{ gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)' }}>
         <History matches={p.matches} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}><Breakdowns p={p} /></div>

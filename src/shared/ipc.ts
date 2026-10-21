@@ -1,5 +1,6 @@
 // Main ↔ renderer contract. The preload exposes RsApi as window.rs; main registers a handler
 // for every method in API_METHODS (channel "rs:<method>"). Live updates arrive on "rs:live".
+import type { CoachTip } from './coach'
 import type { Agg, Side } from './types'
 import type { CatalogOverrides } from './catalog'
 import type { BanSuggestion } from './bans'
@@ -209,6 +210,8 @@ export interface Performance {
   maps: { mapKey: string; matches: number; wins: number; rounds: number; roundWins: number }[]
   /** Teammates you played at least 2 recorded (non-custom) matches with. */
   mates: { profileId: string; name: string; matches: number; wins: number }[]
+  /** Plain-language tips from your own numbers, most important first. */
+  coach: CoachTip[]
   /** Results of your latest games in a row, newest first (for the streak notice). */
   streak: { kind: 'win' | 'loss'; count: number; rp: number | null } | null
   loggedIn: boolean

@@ -1,0 +1,156 @@
+// Coach: turns your own numbers into a few plain-language tips (what to change, what to keep doing).
+// Pure and unit-tested. Every tip carries its evidence; small samples are shrunk toward the
+// players-at-your-rank average so a lucky 5-round streak never becomes advice.
+import type { MatchRow } from './ipc'
+import type { Side } from './types'
+
+export interface CoachOp { opKey: string; name: string; side: Side; rounds: number; wins: number }
+export interface CoachTip {
+  id: string
+  kind: 'side' | 'drop' | 'play' | 'survive' | 'map' | 'tilt'
+  title: string
+  detail: string
+  /** Higher = more rounds at stake; tips are sorted by it. */
+  weight: number
+}
+export interface CoachInput {
+  season: string
+  prevSeason: string
+  /** Your operators this season and last season. */
+  ops: CoachOp[]
+  prevOps: CoachOp[]
+  /** Win rate per operator for players at your rank (crowd data), if known. */
+  peers: Map<string, { rounds: number; wins: number }>
+  /** "Gold players", "players" when no rank. */
+  peerLabel: string
+  matches: MatchRow[]
+  maps: { mapKey: string; matches: number; wins: number; rounds: number; roundWins: number }[]
+  mapName: (key: string) => string
+}
+
+const PRIOR = 20 // rounds of "average player" mixed into every operator rate
+const pct = (x: number) => `${Math.round(x * 100)}%`
+const SIDE: Record<Side, string> = { attack: 'attack', defense: 'defense' }
+
+function sideRates(ops: CoachOp[]): Record<Side, { rounds: number; wins: number }> {
+  const s = { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }
+  for (const o of ops) { s[o.side].rounds += o.rounds; s[o.side].wins += o.wins }
+  return s
+}
+
+export function coach(inp: CoachInput): CoachTip[] {
+  const tips: CoachTip[] = []
+  const both = inp.prevSeason ? `${inp.prevSeason} and ${inp.season}` : inp.season
+
+  // 1. Weak side: the biggest, steadiest leak usually shows up as one side lagging the other.
+  const now = sideRates(inp.ops), before = sideRates(inp.prevOps)
+  if (now.attack.rounds >= 30 && now.defense.rounds >= 30) {
+    const a = now.attack.wins / now.attack.rounds, d = now.defense.wins / now.defense.rounds
+    const weak: Side = a < d ? 'attack' : 'defense', strong: Side = weak === 'attack' ? 'defense' : 'attack'
+    const gap = Math.abs(a - d)
+    if (gap >= 0.05) {
+      const pa = before[weak].rounds >= 30 && before[strong].rounds >= 30 ? before[weak].wins / before[weak].rounds : null
+      const pd = pa === null ? null : before[strong].wins / before[strong].rounds
+      const again = pa !== null && pd !== null && pa < pd
+      tips.push({
+        id: 'side', kind: 'side', weight: gap * Math.sqrt(now[weak].rounds) * 4,
+        title: `${weak === 'attack' ? 'Attack' : 'Defense'} is where you lose rounds`,
+        detail: `You win ${pct(now[weak].wins / now[weak].rounds)} of ${SIDE[weak]} rounds and ${pct(now[strong].wins / now[strong].rounds)} on ${SIDE[strong]} this season` +
+          (again ? `, and it was the same last season (${pct(pa)} vs ${pct(pd)}).` : '.') +
+          (weak === 'attack'
+            ? ' Attack rounds are usually lost before the plant: drone more, push together with a teammate, and play for the plant instead of chasing kills.'
+            : ' Defense rounds are usually lost by being caught out of position: reinforce early, hold one angle at a time, and fall back to site when you lose intel.')
+      })
+    }
+  }
+
+  // 2. Operators: compare each one with players at your rank, over this and last season together.
+  const merged = new Map<string, CoachOp & { now: number }>()
+  for (const [list, cur] of [[inp.prevOps, 0], [inp.ops, 1]] as const) {
+    for (const o of list) {
+      const m = merged.get(o.opKey) ?? { ...o, rounds: 0, wins: 0, now: 0 }
+      m.rounds += o.rounds; m.wins += o.wins; if (cur) m.now += o.rounds
+      merged.set(o.opKey, m)
+    }
+  }
+  const peerRate = (key: string) => {
+    const p = inp.peers.get(key)
+    return p && p.rounds >= 50 ? p.wins / p.rounds : 0.5
+  }
+  const rated = [...merged.values()].map((o) => {
+    const peer = peerRate(o.opKey)
+    const shrunk = (o.wins + peer * PRIOR) / (o.rounds + PRIOR)
+    return { ...o, peer, delta: shrunk - peer }
+  })
+  const sideNow = (s: Side) => Math.max(1, now[s].rounds)
+  const strong = rated.filter((o) => o.rounds >= 10 && o.delta >= 0.04).sort((x, y) => y.delta * Math.sqrt(y.rounds) - x.delta * Math.sqrt(x.rounds))
+
+  for (const o of rated.filter((o) => o.rounds >= 15 && o.delta <= -0.04).sort((x, y) => x.delta * Math.sqrt(x.rounds) - y.delta * Math.sqrt(y.rounds)).slice(0, 2)) {
+    const alt = strong.filter((s) => s.side === o.side).slice(0, 2).map((s) => s.name)
+    tips.push({
+      id: `drop:${o.opKey}`, kind: 'drop', weight: -o.delta * Math.sqrt(o.rounds) * 4,
+      title: `Pick ${o.name} less`,
+      detail: `You win ${pct(o.wins / o.rounds)} of ${o.rounds} rounds with ${o.name} (${both}); ${inp.peerLabel} win ${pct(o.peer)} with them.` +
+        (alt.length ? ` You do much better on ${alt.join(' and ')}.` : '')
+    })
+  }
+
+  for (const o of strong.filter((o) => o.now / sideNow(o.side) < 0.06).slice(0, 2)) {
+    tips.push({
+      id: `play:${o.opKey}`, kind: 'play', weight: o.delta * Math.sqrt(o.rounds) * 3,
+      title: `Bring back ${o.name}`,
+      detail: `You win ${pct(o.wins / o.rounds)} of ${o.rounds} rounds with ${o.name} (${inp.peerLabel}: ${pct(o.peer)}), but you've ${o.now ? `only played them ${o.now} rounds` : 'not played them'} this season.`
+    })
+  }
+
+  // 3. Survival (replays): how much your team depends on you staying alive.
+  const rounds = inp.matches.filter((m) => m.kind !== 'Custom').flatMap((m) => m.rounds)
+  if (rounds.length >= 20) {
+    const died = rounds.filter((r) => r.died), lived = rounds.filter((r) => !r.died)
+    const rate = (rs: typeof rounds) => rs.filter((r) => r.won).length / Math.max(1, rs.length)
+    const blank = died.filter((r) => r.kills === 0).length / Math.max(1, died.length)
+    if (died.length >= 8 && lived.length >= 8 && rate(lived) - rate(died) >= 0.2) {
+      tips.push({
+        id: 'survive', kind: 'survive', weight: (rate(lived) - rate(died)) * Math.sqrt(rounds.length) * 2 * (died.length / rounds.length),
+        title: 'Staying alive wins your rounds',
+        detail: `Your team wins ${pct(rate(lived))} of rounds when you survive and ${pct(rate(died))} when you die. You die in ${pct(died.length / rounds.length)} of rounds, and ${pct(blank)} of those deaths come before you get a kill. Take fewer early duels: let a teammate swing first so you can trade.`
+      })
+    }
+  }
+
+  // 4. Maps (replays): one clearly bad map is worth banning.
+  const ok = inp.maps.filter((m) => m.matches >= 2 && m.rounds >= 12)
+  const total = ok.reduce((n, m) => n + m.rounds, 0), totalWins = ok.reduce((n, m) => n + m.roundWins, 0)
+  if (ok.length >= 3 && total) {
+    const avg = totalWins / total
+    const worst = ok.map((m) => ({ m, d: (m.roundWins + avg * 10) / (m.rounds + 10) - avg })).sort((a, b) => a.d - b.d)[0]!
+    if (worst.d <= -0.08) {
+      tips.push({
+        id: `map:${worst.m.mapKey}`, kind: 'map', weight: -worst.d * Math.sqrt(worst.m.rounds) * 3,
+        title: `Ban ${inp.mapName(worst.m.mapKey)} when you can`,
+        detail: `You win ${pct(worst.m.roundWins / worst.m.rounds)} of rounds on ${inp.mapName(worst.m.mapKey)} (${worst.m.wins}–${worst.m.matches - worst.m.wins} in games) against ${pct(avg)} on your other maps.`
+      })
+    }
+  }
+
+  // 5. Tilt: how you do right after two losses in a row (same sitting, under 3 h apart).
+  const games = inp.matches.filter((m) => !m.games && (m.result === 'win' || m.result === 'loss')).slice().reverse()
+  if (games.length >= 15) {
+    let after = 0, afterWins = 0
+    for (let i = 2; i < games.length; i++) {
+      const [a, b, c] = [games[i - 2]!, games[i - 1]!, games[i]!]
+      if (Date.parse(c.at) - Date.parse(a.at) > 3 * 3600_000) continue
+      if (a.result === 'loss' && b.result === 'loss') { after++; afterWins += +(c.result === 'win') }
+    }
+    const overall = games.filter((g) => g.result === 'win').length / games.length
+    if (after >= 6 && afterWins / after <= overall - 0.1) {
+      tips.push({
+        id: 'tilt', kind: 'tilt', weight: (overall - afterWins / after) * Math.sqrt(after) * 3,
+        title: 'Take a break after two losses',
+        detail: `After losing two games in a row you win ${pct(afterWins / after)} of the next game (${after} times), against ${pct(overall)} overall.`
+      })
+    }
+  }
+
+  return tips.sort((a, b) => b.weight - a.weight).slice(0, 6)
+}

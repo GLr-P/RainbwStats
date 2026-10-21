@@ -4,9 +4,11 @@
 import type { RankSnapshot } from './db'
 import type { MatchRow, Performance, SessionStats } from '../shared/ipc'
 import type { RoundRecord, Side } from '../shared/types'
-import { operatorById, operatorByKey } from '../shared/catalog'
-import { seasonCodeToId } from '../shared/ranks'
-import { currentSeason, type Ctx } from './services'
+import { mapName, operatorById, operatorByKey } from '../shared/catalog'
+import { coach } from '../shared/coach'
+import { bandOf } from '../shared/crowd'
+import { seasonCodeToId, seasonIdToCode } from '../shared/ranks'
+import { currentSeason, globalOps, type Ctx } from './services'
 import { sidePredictionAccuracy } from './live/state'
 
 const HOUR = 3600_000
@@ -106,17 +108,19 @@ export function sessionOf(matches: MatchRow[], now: number): SessionStats | null
 export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Performance {
   const season = currentSeason(ctx)
   const me = ctx.me()
-  const empty: Performance = { me: null, season, rank: null, rpHistory: [], pastRanks: [], sideAccuracy: { correct: 0, total: 0 }, session: null, mates: [], streak: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], loggedIn }
+  const empty: Performance = { me: null, season, rank: null, rpHistory: [], pastRanks: [], sideAccuracy: { correct: 0, total: 0 }, session: null, mates: [], streak: null, matches: [], sides: { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }, ops: [], maps: [], coach: [], loggedIn }
   if (!me) return empty
   const snaps = ctx.db.rankSnapshots(me, 'ranked', seasonCodeToId(season))
   const recorded = ctx.db.recentMatches(60).map((m) => ctx.db.roundsOfMatch(m.matchId))
   const replays = recorded.map((rs) => replayMatch(rs, me)).filter((m): m is MatchRow => !!m)
   const matches = mergeHistory(replays, snaps)
   const last = snaps[snaps.length - 1]
-  const ops = [...ctx.db.apiOpAggs({ profileId: me, season })].flatMap(([key, a]) => {
+  const opsOf = (s: string) => [...ctx.db.apiOpAggs({ profileId: me, season: s })].flatMap(([key, a]) => {
     const op = operatorByKey(key)
     return op && a.rounds ? [{ opKey: key, name: op.name, side: op.side, rounds: a.rounds, wins: a.wins }] : []
   })
+  const ops = opsOf(season)
+  const prevSeason = seasonIdToCode(seasonCodeToId(season) - 1)
   const sides = { attack: { rounds: 0, wins: 0 }, defense: { rounds: 0, wins: 0 } }
   for (const o of ops) { sides[o.side].rounds += o.rounds; sides[o.side].wins += o.wins }
   // Map breakdown from replays; custom games only count when there is nothing else.
@@ -127,14 +131,22 @@ export function performance(ctx: Ctx, loggedIn: boolean, now = Date.now()): Perf
     a.matches++; a.wins += +(m.result === 'win'); a.rounds += m.rounds.length; a.roundWins += m.rounds.filter((r) => r.won).length
     maps.set(m.mapKey!, a)
   }
+  // Coach compares you with players at your rank (crowd data), else with everyone.
+  const band = last?.rank ? bandOf(last.rank) : 0
+  const crowd = ctx.crowd?.() ?? null
+  const banded = band ? globalOps(crowd, band) : new Map()
+  const peers = banded.size ? banded : globalOps(crowd)
+  const peerLabel = banded.size ? `${band >= 8 ? 'Champion' : ['', 'Copper', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond'][band]} players` : 'players'
+  const mapRows = [...maps.values()]
   return {
+    coach: coach({ season, prevSeason, ops, prevOps: opsOf(prevSeason), peers, peerLabel, matches, maps: mapRows, mapName }),
     mates: matesOf(recorded, me), streak: streakOf(matches),
     me: { profileId: me, name: ctx.db.playerName(me) ?? 'You' }, season,
     rank: last ? { rank: last.rank, rankPoints: last.rankPoints, maxRank: last.maxRank, maxRankPoints: last.maxRankPoints, wins: last.wins, losses: last.losses, abandons: last.abandons, kills: last.kills, deaths: last.deaths, at: last.fetchedAt } : null,
     rpHistory: changes(snaps).map((s) => ({ at: s.fetchedAt, rp: s.rankPoints, rank: s.rank })),
     sideAccuracy: sidePredictionAccuracy(ctx.db.sideSequences()),
     pastRanks: ctx.db.seasonRanks(me).filter((r) => r.season !== season && r.rank > 0 && r.rank <= 40).sort((a, b) => seasonCodeToId(b.season) - seasonCodeToId(a.season)),
-    session: sessionOf(matches, now), matches, sides, ops, maps: [...maps.values()], loggedIn
+    session: sessionOf(matches, now), matches, sides, ops, maps: mapRows, loggedIn
   }
 }
 
