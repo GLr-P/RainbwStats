@@ -61,7 +61,9 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
   // Side: standalone label only; a frame showing both ATTACK and DEFENSE labels is ambiguous.
   // Round results ("ATTACKERS WIN", "DEFENDERS ELIMINATED") and ban screens name *other* sides: no side from them.
   const NOT_MINE = new Set(['WIN', 'WINS', 'WON', 'LOST', 'LOSE', 'ELIMINATED', 'VICTORY', 'DEFEAT', 'BAN', 'BANS', 'BANNED', 'MVP'])
-  const resultScreen = L.some((l) => l.split(' ').some((w) => NOT_MINE.has(w)))
+  // OCR often runs the ban heading together ("BANA DEFENDER", 2026-10-19 frames), so match it as a phrase too.
+  const banScreen = L.some((l) => /(^| )BAN ?AN? ?(ATTACKER|DEFENDER)/.test(l))
+  const resultScreen = banScreen || L.some((l) => l.split(' ').some((w) => NOT_MINE.has(w)))
   const sides = new Set<Side>()
   for (const l of resultScreen ? [] : L) {
     if (words(l) > 2) continue
@@ -72,7 +74,7 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
   else if (sides.size === 0) {
     // Operator select lists only your side's operators: their names give your side. Ban screens show
     // the enemy's, so frames mentioning bans are skipped.
-    if (!L.some((l) => l.split(' ').some((w) => w === 'BAN' || w === 'BANS' || w === 'BANNED'))) {
+    if (!banScreen && !L.some((l) => l.split(' ').some((w) => w === 'BAN' || w === 'BANS' || w === 'BANNED'))) {
       const vote = { attack: 0, defense: 0 }
       for (const l of L) {
         if (words(l) > 2) continue
@@ -86,16 +88,12 @@ export function detect(lines: string[], sitesByMap: (mapKey: string) => string[]
 
   if (out.mapKey) {
     // Replay site names look like "2F Meeting Room, 2F Executive Office"; match either half.
-    const sites = sitesByMap(out.mapKey)
-    let siteScore = 0
-    for (const site of sites) {
-      for (const part of site.split(', ').map(norm)) {
-        for (const l of L) {
-          const sc = similarity(l, part)
-          if (sc > siteScore && sc >= 0.85) { siteScore = sc; out.site = site }
-        }
-      }
+    // Several sites on screen means the full BOMB SITES list (ban/operator select), not a chosen site.
+    const found = new Set<string>()
+    for (const site of sitesByMap(out.mapKey)) {
+      if (site.split(', ').map(norm).some((part) => L.some((l) => similarity(l, part) >= 0.85))) found.add(site)
     }
+    if (found.size === 1) out.site = [...found][0]
   }
   return out
 }

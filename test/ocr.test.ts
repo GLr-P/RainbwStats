@@ -77,6 +77,20 @@ describe('side from operator names (operator select)', () => {
   })
 })
 
+describe('ban screen read on 2026-10-19 (Border, round 4, you on attack)', () => {
+  const lines = ['YOUR TEAM', '0:13 1', 'ROUND 4', 'SENTRY', 'GADGET KIT', 'ENEMY TEAM', 'BANA DEFENDER', "i Selected Operator can't be used until role swap or overtime.", 'SENTRY', 'RANKED', 'BORDER', 'BOMBSITES', '2F Armory Lockers', '2F Archives', 'IF Ventilation Room', 'IF Workshop', 'IF Bathroom', 'IF Tellers', 'IF Customs Inspections', 'IF Supply Room', 'DIFFICULTY SPEED', 'SPECIALTY: SUPPORT', 'HEALTH']
+  const sites = () => ['2F Armory Lockers, 2F Archives', '1F Ventilation Room, 1F Workshop', '1F Bathroom, 1F Tellers', '1F Customs Inspections, 1F Supply Room']
+  it('takes no side from a run-together "BAN A DEFENDER" heading', () => {
+    const d = detect(lines, sites)
+    expect(d.mapKey).toBe('border')
+    expect(d).not.toHaveProperty('side')
+  })
+  it('takes no site from the full bomb-site list', () => {
+    expect(detect(lines, sites)).not.toHaveProperty('site')
+    expect(detect(['BORDER', 'IF Bathroom'], sites).site).toBe('1F Bathroom, 1F Tellers')
+  })
+})
+
 describe('screens that name another side', () => {
   it('never take a side from round results or ban screens', async () => {
     const { detect } = await import('../src/main/ocr/matcher')
