@@ -1,7 +1,11 @@
 # RainbwStats: notes for Claude
 
-Before starting, read PLAN.md §3 "Next" and §7 "User checks", plus the "Needs you" section at the top of `messages.md`.
-Read PLAN.md's other sections (research, architecture, phase checklists, risks) only when the task touches them.
+This folder is the code repo (public). The private project files sit one level up in the hub: `../ABOUTME.md` (status,
+decisions), `../Information/PLAN.md`, `../Handoff/` (handoff log, `messages.md` = the async channel with the owner),
+`../Research/`, `../Thoughts/`.
+
+Before starting, read PLAN.md §3 "Next" and §7 "User checks", plus the "Needs you" section at the top of `../Handoff/messages.md`.
+Read PLAN.md's other sections (research, phase checklists, risks) only when the task touches them. Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 When a phase or release finishes, tick its boxes and add a row to [docs/VERIFICATION-LOG.md](docs/VERIFICATION-LOG.md).
 
 ## Layout
